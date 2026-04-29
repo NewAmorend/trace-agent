@@ -1,62 +1,64 @@
-# Codex Trajectory Analyzer
+# Agent Trajectory Eval
 
-A minimal Python command-line tool for analyzing coding agent trajectories. This tool parses agent execution traces and produces:
+A Codex-first evaluation toolkit for coding agent trajectories. It reads Codex
+CLI JSONL session or `codex exec --json` streams and produces:
 
-1. **Normalized Steps**: Enriched step data with action types and stages
-2. **Trace Tree**: Visual representation of agent exploration and state changes
-3. **Suspicious Step Detection**: Scores steps for potentially problematic patterns
-4. **Failure Diagnosis**: Identifies critical failure points and provides replay suggestions
+1. **Normalized Steps**: Codex events converted into consistent step records
+2. **Trace Tree**: State transitions created by file and environment changes
+3. **Risk Metrics**: Counts for commands, tests, file changes, failures, and suspicious behavior
+4. **Failure Diagnosis**: Rule-based critical-step detection with replay hints
+5. **Batch Reports**: Directory-level summaries for CI or regression evaluation
+
+The project intentionally focuses on Codex JSONL today. The adapter interface is
+still present, but only the Codex adapter is registered by default.
+
+## Quick Start
+
+```bash
+python main.py --input examples/codex_failed_run_001.jsonl --output out/codex_eval
+```
+
+For a directory of trajectories:
+
+```bash
+python main.py --input data/lcb/trajectories --output out/lcb_eval
+```
+
+CI-style exit codes:
+
+```bash
+python main.py --input examples/codex_failed_run_001.jsonl --output out/codex_eval --ci
+```
+
+- `0`: tool ran and no evaluated trajectory failed or reached medium/high risk
+- `1`: evaluation ran, but at least one trajectory failed or reached medium/high risk
+- `2`: tool error, invalid input, or unsupported format
+
+## Outputs
+
+Single-trajectory output directories contain:
+
+- `normalized_steps.json`
+- `trace_tree.md`
+- `diagnosis.json`
+- `diagnosis.md`
+- `eval_result.json`
+- `eval_summary.md`
+
+Batch runs also write:
+
+- `batch_summary.json`
+- `batch_summary.md`
 
 ## Input Format
 
-The tool expects a JSON file with this structure:
+The supported input is Codex JSONL: one JSON event per line. The evaluator
+handles `thread.started`, `turn.completed`, `turn.failed`, and `item.completed`
+events for Codex item types such as `reasoning`, `command_execution`,
+`file_change`, `agent_message`, `mcp_tool_call`, `error`, and `web_search`.
 
-```json
-{
-  "task": "Fix the parser bug",
-  "final_status": "failed",
-  "steps": [
-    {
-      "step_id": 1,
-      "thought": "I need to inspect the parser",
-      "action": "rg \"parse\" .",
-      "observation": "parser.py contains parse_config",
-      "diff": null
-    }
-  ]
-}
-```
-
-### Required Fields
-- `task`: Description of what the agent is trying to accomplish
-- `final_status`: "success" or "failed"
-- `steps`: Array of step objects
-
-### Step Fields
-- `step_id` (required): Integer identifier
-- `thought` (optional): Agent's reasoning
-- `action` (required): Command the agent executed
-- `observation` (optional): Result of the action
-- `diff` (optional): File diff if applicable
-
-## How to Run
-
-```bash
-python main.py --input examples/failed_run_001.json --output out/failed_run_001
-```
-
-This will generate four files in the output directory:
-
-- `normalized_steps.json` - Full step data with classifications
-- `trace_tree.md` - Visual tree of agent execution
-- `diagnosis.json` - Machine-readable diagnosis
-- `diagnosis.md` - Human-readable diagnosis report
-
-## Example Command
-
-```bash
-python main.py --input examples/failed_run_001.json --output out/analysis
-```
+The older internal JSON example remains in the repository as historical sample
+data, but the default evaluator is now Codex-only.
 
 ## Key Concepts
 
@@ -153,8 +155,10 @@ This is a **minimal viable product (MVP)** - a rule-based analyzer, not a full C
 
 The codebase is organized into clear modules:
 
-- `models.py`: Data structures (Step, NormalizedStep, TraceNode, Diagnosis)
-- `parser.py`: JSON loading and validation
+- `models.py`: Data structures (Trajectory, Step, NormalizedStep, TraceNode, Diagnosis, EvalResult)
+- `parser.py`: Codex JSONL loading and validation
+- `evaluator.py`: Single-file evaluation, directory discovery, and batch summaries
+- `adapters/codex_adapter.py`: Codex event stream conversion
 - `classifier.py`: Action type, stage, and state change classification
 - `tree.py`: Trace tree building and rendering
 - `analyzer.py`: Suspicious step scoring and failure diagnosis
@@ -169,6 +173,7 @@ The codebase is organized into clear modules:
 - **Design**: Clear separation of concerns
 - **Extensibility**: Easy to add new classification rules
 - **Type hints**: Added for better code clarity
+- **Tests**: `python -m unittest discover`
 
 ## Extending the Analyzer
 

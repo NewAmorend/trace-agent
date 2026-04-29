@@ -1,76 +1,92 @@
 #!/usr/bin/env python3
-"""Main CLI for Codex Trajectory Analyzer."""
+"""Main CLI for Agent Trajectory Eval."""
 
 import argparse
 import sys
+from pathlib import Path
 
-from parser import load_trajectory
-from classifier import normalize_steps
-from tree import build_trace_tree, render_trace_tree
-from analyzer import score_suspicious_steps, locate_failure
-from report import write_outputs
+from evaluator import discover_inputs, evaluate_file, summarize_batch
+from report import write_batch_summary, write_eval_result
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(
-        description='Analyze coding agent trajectories'
+        description='Evaluate Codex agent trajectories'
     )
     parser.add_argument(
         '--input',
         required=True,
-        help='Path to trajectory JSON file'
+        help='Path to a Codex JSONL file, or a directory containing trajectory files'
     )
     parser.add_argument(
         '--output',
         required=True,
-        help='Output directory for analysis results'
+        help='Output directory for evaluation results'
+    )
+    parser.add_argument(
+        '--ci',
+        action='store_true',
+        help='Return exit code 1 when any evaluated trajectory is medium/high risk or failed'
+    )
+    parser.add_argument(
+        '--quiet',
+        action='store_true',
+        help='Only print errors and final result'
     )
 
     args = parser.parse_args()
 
     try:
-        # Load trajectory
-        print(f"Loading trajectory from {args.input}...")
-        task, final_status, steps = load_trajectory(args.input)
-        print(f"  Task: {task}")
-        print(f"  Final Status: {final_status}")
-        print(f"  Steps: {len(steps)}")
+        inputs = discover_inputs(args.input)
+        output_dir = Path(args.output)
+        results = []
 
-        # Normalize steps
-        print("Normalizing steps...")
-        normalized = normalize_steps(steps)
+        if not args.quiet:
+            print(f"Evaluating {len(inputs)} Codex trajector{'y' if len(inputs) == 1 else 'ies'}...")
 
-        # Build trace tree
-        print("Building trace tree...")
-        tree_nodes = build_trace_tree(normalized)
-        tree_md = render_trace_tree(tree_nodes)
+        for input_file in inputs:
+            if not args.quiet:
+                print(f"  - {input_file}")
+            result = evaluate_file(input_file)
+            results.append(result)
 
-        # Score suspicious steps
-        print("Scoring suspicious steps...")
-        scored = score_suspicious_steps(normalized, task, final_status)
+            if len(inputs) == 1:
+                target_dir = output_dir
+            else:
+                target_dir = output_dir / input_file.stem
+            write_eval_result(target_dir, result)
 
-        # Locate failure
-        print("Analyzing failure...")
-        diagnosis = locate_failure(scored, final_status)
+        summary = summarize_batch(results)
+        write_batch_summary(output_dir, summary, results)
 
-        # Write outputs
-        print(f"Writing outputs to {args.output}...")
-        write_outputs(args.output, task, final_status, scored, tree_md, diagnosis)
+        if not args.quiet:
+            print("\nEvaluation complete!")
+            print(f"  Output: {output_dir}")
+            print(f"  Total: {summary.total}")
+            print(f"  Failed: {summary.failed}")
+            print(
+                f"  Risk: high={summary.high_risk}, "
+                f"medium={summary.medium_risk}, low={summary.low_risk}"
+            )
 
-        print("\nAnalysis complete!")
-        print(f"  - {args.output}/normalized_steps.json")
-        print(f"  - {args.output}/trace_tree.md")
-        print(f"  - {args.output}/diagnosis.json")
-        print(f"  - {args.output}/diagnosis.md")
+            if len(results) == 1 and results[0].diagnosis.critical_step:
+                diagnosis = results[0].diagnosis
+                print(f"\nCritical Step: {diagnosis.critical_step.step_id}")
+                print(f"Error Type: {diagnosis.error_type}")
 
-        if diagnosis.critical_step:
-            print(f"\nCritical Step: {diagnosis.critical_step.step_id}")
-            print(f"Error Type: {diagnosis.error_type}")
+        if args.ci and any(
+            result.final_status.lower() != 'success'
+            or result.metrics.risk_level in ('medium', 'high')
+            for result in results
+        ):
+            return 1
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+        return 2
+
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

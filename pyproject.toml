@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-trajectory-eval"
+version = "0.1.0"
+description = "Codex-first evaluation toolkit for coding agent trajectories"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+  {name = "Agent Trajectory Eval Contributors"}
+]
+dependencies = []
+
+[project.scripts]
+agent-trajectory-eval = "main:main"
+trace-eval = "main:main"
+
+[tool.setuptools]
+py-modules = [
+  "analyzer",
+  "classifier",
+  "evaluator",
+  "main",
+  "models",
+  "parser",
+  "report",
+  "tree",
+]
+packages = ["adapters"]

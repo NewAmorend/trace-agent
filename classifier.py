@@ -28,6 +28,7 @@ def classify_action_type(action: str, diff: str | None) -> str:
         r'\brg\b',
         r'\bgrep\b',
         r'\bfind\b',
+        r'\bweb_search\b',
     ]
     if any(re.search(pattern, action_lower) for pattern in search_patterns):
         return 'search'
@@ -148,10 +149,14 @@ def normalize_steps(steps: list[Step]) -> list[NormalizedStep]:
 
         norm_step = NormalizedStep(
             step_id=step.step_id,
+            event_id=step.event_id,
             thought=step.thought,
             action=step.action,
             observation=step.observation,
             diff=step.diff,
+            item_type=step.item_type,
+            exit_code=step.exit_code,
+            status=step.status,
             action_type=action_type,
             stage=stage,
             state_change=state_change,

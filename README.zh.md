@@ -1,56 +1,63 @@
-# Codex Trajectory Analyzer
+# Agent Trajectory Eval
 
-一个用于分析编程 Agent 执行轨迹的轻量级 Python 命令行工具。解析 Agent 的执行记录并生成：
+一个 Codex-first 的编程 Agent 轨迹评测工具。它读取 Codex CLI JSONL
+会话或 `codex exec --json` 输出流，并生成：
 
-1. **归一化步骤**: 带动作类型和阶段标注的增强步骤数据
-2. **轨迹树**: Agent 探索过程和状态变更的可视化展示
-3. **可疑步骤检测**: 对潜在问题模式进行评分
-4. **故障诊断**: 定位关键故障点并提供回放建议
+1. **归一化步骤**：把 Codex 事件转换成统一步骤记录
+2. **轨迹树**：展示由文件/环境变更触发的状态迁移
+3. **风险指标**：统计命令、测试、文件变更、失败测试和可疑步骤
+4. **故障诊断**：基于规则定位关键步骤，并给出 replay 建议
+5. **批量报告**：支持目录级评测汇总，便于 CI 或回归分析
+
+当前项目只默认适配 Codex JSONL。适配器接口仍然保留，但默认注册的只有
+Codex adapter。
+
+## 快速开始
+
+```bash
+python main.py --input examples/codex_failed_run_001.jsonl --output out/codex_eval
+```
+
+评测一个目录：
+
+```bash
+python main.py --input data/lcb/trajectories --output out/lcb_eval
+```
+
+CI 风格退出码：
+
+```bash
+python main.py --input examples/codex_failed_run_001.jsonl --output out/codex_eval --ci
+```
+
+- `0`：工具运行成功，且没有失败或中/高风险轨迹
+- `1`：评测成功，但至少一个轨迹失败或达到中/高风险
+- `2`：工具错误、输入非法或格式不支持
+
+## 输出文件
+
+单条轨迹输出目录包含：
+
+- `normalized_steps.json`
+- `trace_tree.md`
+- `diagnosis.json`
+- `diagnosis.md`
+- `eval_result.json`
+- `eval_summary.md`
+
+批量评测还会生成：
+
+- `batch_summary.json`
+- `batch_summary.md`
 
 ## 输入格式
 
-工具需要一个如下结构的 JSON 文件：
+当前支持 Codex JSONL：每行一个 JSON event。评测器会处理
+`thread.started`、`turn.completed`、`turn.failed` 和 `item.completed`，并识别
+Codex item 类型，例如 `reasoning`、`command_execution`、`file_change`、
+`agent_message`、`mcp_tool_call`、`error` 和 `web_search`。
 
-```json
-{
-  "task": "Fix the parser bug",
-  "final_status": "failed",
-  "steps": [
-    {
-      "step_id": 1,
-      "thought": "I need to inspect the parser",
-      "action": "rg \"parse\" .",
-      "observation": "parser.py contains parse_config",
-      "diff": null
-    }
-  ]
-}
-```
-
-### 必填字段
-- `task`: Agent 要完成的任务描述
-- `final_status`: "success" 或 "failed"
-- `steps`: 步骤对象数组
-
-### 步骤字段
-- `step_id` (必填): 整数标识符
-- `thought` (可选): Agent 的推理过程
-- `action` (必填): Agent 执行的命令
-- `observation` (可选): 执行结果
-- `diff` (可选): 文件变更内容
-
-## 运行方式
-
-```bash
-python main.py --input examples/failed_run_001.json --output out/failed_run_001
-```
-
-会在输出目录生成四个文件：
-
-- `normalized_steps.json` - 带分类信息的完整步骤数据
-- `trace_tree.md` - Agent 执行的可视化树
-- `diagnosis.json` - 机器可读的诊断结果
-- `diagnosis.md` - 人类可读的诊断报告
+仓库里的旧内部 JSON 示例仅作为历史样本保留，默认评测流程现在是 Codex-only。
 
 ## 核心概念
 
@@ -147,8 +154,10 @@ State 0
 
 代码按职责分为清晰的模块：
 
-- `models.py`: 数据结构 (Step, NormalizedStep, TraceNode, Diagnosis)
-- `parser.py`: JSON 加载和验证
+- `models.py`: 数据结构 (Trajectory, Step, NormalizedStep, TraceNode, Diagnosis, EvalResult)
+- `parser.py`: Codex JSONL 加载和验证
+- `evaluator.py`: 单文件评测、目录发现和批量汇总
+- `adapters/codex_adapter.py`: Codex 事件流转换
 - `classifier.py`: 动作类型、阶段和状态变更分类
 - `tree.py`: 轨迹树构建和渲染
 - `analyzer.py`: 可疑步骤评分和故障诊断
@@ -160,6 +169,7 @@ State 0
 - **语言**: Python 3.x
 - **依赖**: 仅 Python 标准库
 - **设计**: 职责分离，易于扩展
+- **测试**: `python -m unittest discover`
 
 ## 扩展分析器
 

@@ -4,20 +4,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Codex Trajectory Analyzer is a minimal Python CLI tool for analyzing coding agent trajectories. It parses agent execution traces (JSON and JSONL) and produces normalized steps, trace trees, suspicious step detection, and failure diagnosis reports. Supports multiple trajectory formats via an adapter pattern. Pure Python standard library — no external dependencies.
+Agent Trajectory Eval is a Codex-first Python CLI tool for evaluating coding agent trajectories. It parses Codex JSONL session or `codex exec --json` streams and produces normalized steps, trace trees, risk metrics, suspicious step detection, failure diagnosis reports, and batch summaries. Pure Python standard library — no runtime dependencies.
 
 ## Commands
 
 ```bash
-# Run analysis (internal JSON format)
-python main.py --input examples/failed_run_001.json --output out/failed_run_001
-
-# Run analysis (Codex JSONL format)
+# Run evaluation (Codex JSONL format)
 python main.py --input examples/codex_failed_run_001.jsonl --output out/codex_failed_run_001
+
+# Batch evaluation
+python main.py --input data/lcb/trajectories --output out/lcb_eval
+
+# CI mode: returns 1 for failed or medium/high-risk trajectories
+python main.py --input examples/codex_failed_run_001.jsonl --output out/codex_failed_run_001 --ci
 
 # Verify outputs
 cat out/failed_run_001/trace_tree.md
 cat out/failed_run_001/diagnosis.md
+
+# Run tests
+python -m unittest discover
 ```
 
 ### LiveCodeBench Testing
@@ -37,7 +43,7 @@ python scripts/run_lcb.py --difficulty hard --limit 1  # just one hard problem
 python main.py --input data/lcb/trajectories/<file>.jsonl --output out/lcb_test
 ```
 
-There is no test suite. Validation is done by running against `examples/failed_run_001.json` and checking:
+Validation is done with `python -m unittest discover` and the Codex fixture:
 - Trace tree shows state transitions: State 0 -> State 1 -> State 2
 - Step 5 is flagged as suspicious (test file manipulation)
 - Diagnosis identifies the correct critical step and error type
@@ -49,18 +55,18 @@ Entry point is `main.py`. Core modules are flat in the project root. Adapter mod
 **Data flow**: `main.py` calls modules in sequence:
 
 ```
-parser.py → classifier.py → tree.py → analyzer.py → report.py
+parser.py → evaluator.py → classifier.py → tree.py → analyzer.py → report.py
 ```
 
-All modules operate on dataclasses from `models.py`: `Step` → `NormalizedStep` (enriched with classifications) → `TraceNode` (tree structure) → `Diagnosis` (failure analysis).
+All modules operate on dataclasses from `models.py`: `Trajectory` → `Step` → `NormalizedStep` (enriched with classifications) → `TraceNode` (tree structure) → `Diagnosis` and `EvalResult`.
 
 ### Module Responsibilities
 
 - **models.py**: Dataclasses — `Step`, `NormalizedStep`, `TraceNode`, `Diagnosis`
-- **parser.py**: `load_trajectory()` — JSON/JSONL loading, adapter-based format detection, delegates to registered adapters
+- **parser.py**: `load_trajectory()` — Codex JSONL loading, adapter-based format detection, delegates to registered adapters
+- **evaluator.py**: `evaluate_file()` + `summarize_batch()` — single and directory evaluation orchestration
 - **adapters/**: Format adapter layer
   - **base.py**: `BaseAdapter` ABC with `detect()` and `transform()` methods
-  - **internal.py**: `InternalAdapter` — original `{task, final_status, steps}` JSON format
   - **codex_adapter.py**: `CodexAdapter` — OpenAI Codex CLI JSONL session format
   - **__init__.py**: Registry — `get_adapter()`, `register_adapter()`
 - **classifier.py**: `normalize_steps()` — classifies each step's action type, stage, and whether it's state-changing
@@ -76,9 +82,9 @@ All modules operate on dataclasses from `models.py`: `Step` → `NormalizedStep`
 
 ## Input Formats
 
-**Internal JSON**: `{task, final_status, steps}` array. Each step requires `step_id` and `action`; `thought`, `observation`, and `diff` are optional.
-
 **Codex JSONL**: One JSON object per line from `codex exec --json` or `~/.codex/sessions/rollout-*.jsonl`. Events follow the `ThreadEvent` schema with `item.completed` events providing `command_execution`, `file_change`, `reasoning`, `agent_message`, and other item types. Task is inferred from content; final_status is inferred from `turn.failed` events.
+
+The old `InternalAdapter` file remains in the repository for reference, but it is not registered by default. Treat Codex JSONL as the supported input format.
 
 ## Extension Points
 

@@ -2,7 +2,7 @@
 
 import json
 from adapters.base import BaseAdapter
-from models import Step
+from models import Step, Trajectory
 
 
 class CodexAdapter(BaseAdapter):
@@ -16,29 +16,29 @@ class CodexAdapter(BaseAdapter):
             )
         return False
 
-    def transform(self, data: list[dict]) -> tuple[str, str, list[Step]]:
+    def transform(self, data: list[dict], source_path: str = "") -> Trajectory:
         lines = data
         steps = []
         step_id = 0
         pending_thought = None
         task = 'Unknown task'
+        thread_id = None
         has_failure = False
-        last_turn_had_error = False
+        failure_message = None
 
         for line in lines:
             event_type = line.get('type', '')
 
-            # Extract task from first turn context or thread.started
-            if event_type == 'thread.started' and not task:
-                pass  # thread_id available but not the task prompt
+            if event_type == 'thread.started':
+                thread_id = line.get('thread_id') or line.get('id') or thread_id
 
-            # Track turn-level failure
             if event_type == 'turn.failed':
                 has_failure = True
-                last_turn_had_error = True
-
-            if event_type == 'turn.started':
-                last_turn_had_error = False
+                error = line.get('error') or {}
+                if isinstance(error, dict):
+                    failure_message = error.get('message') or failure_message
+                elif isinstance(error, str):
+                    failure_message = error
 
             # Only process completed items for stable data
             if event_type != 'item.completed':
@@ -50,6 +50,12 @@ class CodexAdapter(BaseAdapter):
 
             details = item.get('details', item)  # exec stream uses flat structure
             item_type = details.get('type', '')
+
+            if item_type in ('user_message', 'message'):
+                text = _extract_text(details)
+                if text and task == 'Unknown task':
+                    task = text[:500]
+                continue
 
             if item_type == 'reasoning':
                 text = details.get('text', '')
@@ -63,10 +69,12 @@ class CodexAdapter(BaseAdapter):
                     step_id += 1
                     steps.append(Step(
                         step_id=step_id,
+                        event_id=item.get('id'),
                         thought=pending_thought,
                         action='',
                         observation=text,
                         diff=None,
+                        item_type=item_type,
                     ))
                     pending_thought = None
                 continue
@@ -76,16 +84,18 @@ class CodexAdapter(BaseAdapter):
                 command = details.get('command', '')
                 output = details.get('aggregated_output', '')
                 status = details.get('status', '')
-
-                if status == 'failed' or details.get('exit_code', 0) not in (0, None):
-                    last_turn_had_error = True
+                exit_code = details.get('exit_code')
 
                 steps.append(Step(
                     step_id=step_id,
+                    event_id=item.get('id'),
                     thought=pending_thought,
                     action=command,
                     observation=output if output else None,
                     diff=None,
+                    item_type=item_type,
+                    exit_code=exit_code,
+                    status=status,
                 ))
                 pending_thought = None
                 continue
@@ -104,10 +114,13 @@ class CodexAdapter(BaseAdapter):
 
                 steps.append(Step(
                     step_id=step_id,
+                    event_id=item.get('id'),
                     thought=pending_thought,
                     action=f"apply_patch {paths}" if paths else "apply_patch",
                     observation=f"Changes: {'; '.join(diff_parts)}" if diff_parts else "Patch applied",
                     diff='\n'.join(diff_parts) if diff_parts else None,
+                    item_type=item_type,
+                    status=details.get('status'),
                 ))
                 pending_thought = None
                 continue
@@ -127,17 +140,19 @@ class CodexAdapter(BaseAdapter):
                 obs = None
                 if error:
                     obs = error.get('message', '')
-                    last_turn_had_error = True
+                    has_failure = True
                 elif result:
                     content = result.get('content', [])
                     obs = json.dumps(content) if content else None
 
                 steps.append(Step(
                     step_id=step_id,
+                    event_id=item.get('id'),
                     thought=pending_thought,
                     action=action,
                     observation=obs,
                     diff=None,
+                    item_type=item_type,
                 ))
                 pending_thought = None
                 continue
@@ -145,13 +160,16 @@ class CodexAdapter(BaseAdapter):
             if item_type == 'error':
                 step_id += 1
                 message = details.get('message', 'Unknown error')
-                last_turn_had_error = True
+                has_failure = True
+                failure_message = message
                 steps.append(Step(
                     step_id=step_id,
+                    event_id=item.get('id'),
                     thought=pending_thought,
                     action='',
                     observation=message,
                     diff=None,
+                    item_type=item_type,
                 ))
                 pending_thought = None
                 continue
@@ -161,23 +179,29 @@ class CodexAdapter(BaseAdapter):
                 query = details.get('query', '')
                 steps.append(Step(
                     step_id=step_id,
+                    event_id=item.get('id'),
                     thought=pending_thought,
                     action=f"web_search {query}",
                     observation=None,
                     diff=None,
+                    item_type=item_type,
                 ))
                 pending_thought = None
                 continue
 
         final_status = 'failed' if has_failure else 'success'
 
-        # Try to extract task from first agent_message
-        for step in steps:
-            if step.observation and step.action == '' and not step.thought:
-                task = step.observation[:200]
-                break
+        if task == 'Unknown task':
+            task = _infer_task_from_source(source_path)
 
-        return task, final_status, steps
+        return Trajectory(
+            source_path=source_path,
+            task=task,
+            final_status=final_status,
+            steps=steps,
+            thread_id=thread_id,
+            failure_message=failure_message,
+        )
 
 
 def _is_codex_line(line: dict) -> bool:
@@ -186,3 +210,33 @@ def _is_codex_line(line: dict) -> bool:
         'thread.started', 'turn.started', 'turn.completed', 'turn.failed',
         'item.started', 'item.updated', 'item.completed', 'error',
     ) or 'item' in line and isinstance(line['item'], dict)
+
+
+def _extract_text(details: dict) -> str:
+    """Best-effort extraction for Codex user/message item payloads."""
+    text = details.get('text')
+    if isinstance(text, str):
+        return text.strip()
+
+    content = details.get('content')
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                value = item.get('text') or item.get('content')
+                if isinstance(value, str):
+                    parts.append(value)
+        return "\n".join(parts).strip()
+
+    return ""
+
+
+def _infer_task_from_source(source_path: str) -> str:
+    if not source_path:
+        return 'Unknown task'
+    name = source_path.rsplit('/', 1)[-1].rsplit('.', 1)[0]
+    return name.replace('_', ' ').replace('-', ' ')

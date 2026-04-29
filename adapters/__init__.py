@@ -1,11 +1,9 @@
 """Adapter registry for trajectory format detection and conversion."""
 
 from adapters.base import BaseAdapter
-from adapters.internal import InternalAdapter
 from adapters.codex_adapter import CodexAdapter
 
 _ADAPTERS: list[BaseAdapter] = [
-    InternalAdapter(),
     CodexAdapter(),
 ]
 
