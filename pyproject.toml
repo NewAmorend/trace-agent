@@ -27,6 +27,7 @@ py-modules = [
   "models",
   "parser",
   "report",
+  "test_signals",
   "tree",
 ]
 packages = ["adapters"]

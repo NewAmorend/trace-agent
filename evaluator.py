@@ -6,6 +6,7 @@ from analyzer import locate_failure, score_suspicious_steps
 from classifier import normalize_steps
 from models import BatchSummary, EvalMetrics, EvalResult, NormalizedStep
 from parser import load_trajectory
+from test_signals import looks_like_test_failure
 from tree import build_trace_tree, render_trace_tree
 
 
@@ -63,7 +64,7 @@ def compute_metrics(steps: list[NormalizedStep]) -> EvalMetrics:
     test_steps = sum(1 for s in steps if s.action_type == "run_test")
     failed_test_steps = sum(
         1 for s in steps
-        if s.action_type == "run_test" and _looks_like_failure(s.observation)
+        if s.action_type == "run_test" and looks_like_test_failure(s.observation)
     )
     state_changes = sum(1 for s in steps if s.state_change)
     suspicious_steps = sum(1 for s in steps if s.suspicious_score > 0)
@@ -104,15 +105,6 @@ def summarize_batch(results: list[EvalResult]) -> BatchSummary:
         )
 
     return summary
-
-
-def _looks_like_failure(observation: str | None) -> bool:
-    text = (observation or "").lower()
-    failure_words = ("failed", "failure", "error", "exception", "traceback")
-    success_phrases = ("0 failed", "no failures")
-    return any(word in text for word in failure_words) and not any(
-        phrase in text for phrase in success_phrases
-    )
 
 
 def _risk_level(max_score: float, suspicious_steps: int) -> str:

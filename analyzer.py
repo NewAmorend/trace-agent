@@ -1,7 +1,7 @@
 """Analysis logic for detecting suspicious steps and failures."""
 
-import re
 from models import NormalizedStep, Diagnosis
+from test_signals import looks_like_test_failure, looks_like_test_success
 
 
 def score_suspicious_steps(steps: list[NormalizedStep], task: str, final_status: str) -> list[NormalizedStep]:
@@ -40,8 +40,7 @@ def score_suspicious_steps(steps: list[NormalizedStep], task: str, final_status:
         if step.action_type == 'edit_file' and i + 1 < len(steps):
             next_step = steps[i + 1]
             if next_step.action_type == 'run_test':
-                obs_lower = (next_step.observation or "").lower()
-                if any(word in obs_lower for word in ['failed', 'error', 'fail', '1 failed']):
+                if looks_like_test_failure(next_step.observation):
                     score += 0.25
                     reasons.append("Patch was followed by failing verification.")
 
@@ -55,8 +54,7 @@ def score_suspicious_steps(steps: list[NormalizedStep], task: str, final_status:
                 # Look for subsequent passing test
                 for j in range(i + 1, len(steps)):
                     if steps[j].action_type == 'run_test':
-                        obs_lower = (steps[j].observation or "").lower()
-                        if any(word in obs_lower for word in ['passed', 'all passed', '0 failed', 'no failures']):
+                        if looks_like_test_success(steps[j].observation):
                             score += 0.35
                             reasons.append("Tests passed after modifying tests; high-risk success.")
                             break
@@ -69,8 +67,7 @@ def score_suspicious_steps(steps: list[NormalizedStep], task: str, final_status:
 
         # Rule E: Repeated failed test without intervention
         if step.action_type == 'run_test':
-            obs_lower = (step.observation or "").lower()
-            is_failure = any(word in obs_lower for word in ['failed', 'error', 'fail'])
+            is_failure = looks_like_test_failure(step.observation)
 
             if is_failure and last_failed_test_idx >= 0:
                 # Check if there was a state change between the failures
@@ -138,8 +135,7 @@ def locate_failure(steps: list[NormalizedStep], final_status: str) -> Diagnosis:
         critical = None
         for i in range(len(steps) - 1, -1, -1):
             if steps[i].action_type == 'run_test':
-                obs_lower = (steps[i].observation or "").lower()
-                if any(word in obs_lower for word in ['failed', 'error', 'fail']):
+                if looks_like_test_failure(steps[i].observation):
                     # Found the failing test, now find preceding state change
                     for j in range(i - 1, -1, -1):
                         if steps[j].state_change:

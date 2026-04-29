@@ -164,11 +164,10 @@ def format_diagnosis_md(task: str, final_status: str, steps: list[NormalizedStep
 
         for step in suspicious:
             reasons_text = "; ".join(step.suspicious_reasons) if step.suspicious_reasons else ""
-            # Escape pipes in action
-            action_escaped = step.action.replace('|', '\\|')
             lines.append(
-                f"| {step.step_id} | {step.stage} | {step.action_type} | "
-                f"{step.suspicious_score:.2f} | {reasons_text} | {action_escaped} |"
+                f"| {step.step_id} | {_md_table_cell(step.stage)} | "
+                f"{_md_table_cell(step.action_type)} | {step.suspicious_score:.2f} | "
+                f"{_md_table_cell(reasons_text)} | {_md_table_cell(step.action)} |"
             )
 
         lines.append("")
@@ -261,11 +260,13 @@ def format_batch_summary_md(summary: BatchSummary, results: list[EvalResult]) ->
     ])
 
     for result in results:
-        source = Path(result.source_path).name
+        source = _md_table_cell(Path(result.source_path).name)
         lines.append(
-            f"| {source} | {result.final_status} | {result.metrics.risk_level} | "
+            f"| {source} | {_md_table_cell(result.final_status)} | "
+            f"{_md_table_cell(result.metrics.risk_level)} | "
             f"{result.metrics.max_suspicious_score:.2f} | "
-            f"{result.metrics.suspicious_steps} | {result.diagnosis.error_type} |"
+            f"{result.metrics.suspicious_steps} | "
+            f"{_md_table_cell(result.diagnosis.error_type)} |"
         )
 
     lines.append("")
@@ -280,3 +281,11 @@ def _diagnosis_dict(diagnosis: Diagnosis) -> dict:
         'replay_branch_step': diagnosis.replay_branch_step,
         'replay_hint': diagnosis.replay_hint,
     }
+
+
+def _md_table_cell(value: object) -> str:
+    """Escape text so it stays inside a Markdown table cell."""
+    text = "" if value is None else str(value)
+    text = text.replace("\\", "\\\\")
+    text = text.replace("|", "\\|")
+    return " ".join(text.splitlines())
