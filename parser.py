@@ -1,56 +1,60 @@
-"""Parser for trajectory JSON files."""
+"""Parser for trajectory files (JSON and JSONL)."""
 
 import json
 from models import Step
+from adapters import get_adapter
 
 
 def load_trajectory(path: str) -> tuple[str, str, list[Step]]:
     """
-    Load trajectory from JSON file.
+    Load trajectory from a JSON or JSONL file.
+
+    Uses registered adapters to detect the format and transform data.
 
     Returns:
         tuple of (task, final_status, list of Steps)
 
     Raises:
         FileNotFoundError: if file doesn't exist
-        ValueError: if JSON is invalid or missing required fields
+        ValueError: if format is unrecognized or data is invalid
     """
     try:
         with open(path, 'r') as f:
-            data = json.load(f)
+            raw = f.read()
     except FileNotFoundError:
         raise FileNotFoundError(f"Trajectory file not found: {path}")
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON in {path}: {e}")
 
-    # Validate required fields
-    if 'task' not in data:
-        raise ValueError("Missing required field: 'task'")
-    if 'final_status' not in data:
-        raise ValueError("Missing required field: 'final_status'")
-    if 'steps' not in data:
-        raise ValueError("Missing required field: 'steps'")
+    # Try JSON first (single object or array)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        # Try JSONL (one JSON object per line)
+        data = _parse_jsonl(raw)
 
-    task = data['task']
-    final_status = data['final_status']
-    raw_steps = data['steps']
-
-    # Build Step objects, tolerating missing fields
-    steps = []
-    for raw_step in raw_steps:
-        if 'step_id' not in raw_step:
-            continue  # Skip steps without ID
-
-        step = Step(
-            step_id=raw_step['step_id'],
-            thought=raw_step.get('thought'),
-            action=raw_step.get('action', ''),
-            observation=raw_step.get('observation'),
-            diff=raw_step.get('diff')
+    adapter = get_adapter(data)
+    if adapter is None:
+        raise ValueError(
+            f"Unrecognized trajectory format in {path}. "
+            f"No registered adapter could handle the data."
         )
-        steps.append(step)
 
-    # Sort by step_id
-    steps.sort(key=lambda s: s.step_id)
+    task, final_status, steps = adapter.transform(data)
+
+    if not steps:
+        raise ValueError(f"No valid steps found in {path}")
 
     return task, final_status, steps
+
+
+def _parse_jsonl(raw: str) -> list[dict]:
+    """Parse a JSONL string into a list of dicts."""
+    lines = []
+    for line in raw.strip().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            lines.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return lines
