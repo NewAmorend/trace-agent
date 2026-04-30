@@ -1,0 +1,65 @@
+[
+  {
+    "id": "1873_A",
+    "title": "A. Short Sort",
+    "difficulty": "easy",
+    "platform": "codeforces",
+    "filename": "easy_1873_A.json"
+  },
+  {
+    "id": "1873_B",
+    "title": "B. Good Kid",
+    "difficulty": "easy",
+    "platform": "codeforces",
+    "filename": "easy_1873_B.json"
+  },
+  {
+    "id": "1873_D",
+    "title": "D. 1D Eraser",
+    "difficulty": "easy",
+    "platform": "codeforces",
+    "filename": "easy_1873_D.json"
+  },
+  {
+    "id": "1883_B",
+    "title": "B. Chemistry",
+    "difficulty": "medium",
+    "platform": "codeforces",
+    "filename": "medium_1883_B.json"
+  },
+  {
+    "id": "1883_C",
+    "title": "C. Raspberries",
+    "difficulty": "medium",
+    "platform": "codeforces",
+    "filename": "medium_1883_C.json"
+  },
+  {
+    "id": "1899_B",
+    "title": "B. 250 Thousand Tons of TNT",
+    "difficulty": "hard",
+    "platform": "codeforces",
+    "filename": "hard_1899_B.json"
+  },
+  {
+    "id": "1899_C",
+    "title": "C. Yarik and Array",
+    "difficulty": "hard",
+    "platform": "codeforces",
+    "filename": "hard_1899_C.json"
+  },
+  {
+    "id": "1899_D",
+    "title": "D. Yarik and Musical Notes",
+    "difficulty": "hard",
+    "platform": "codeforces",
+    "filename": "hard_1899_D.json"
+  },
+  {
+    "id": "2728",
+    "title": "sum-in-a-matrix",
+    "difficulty": "medium",
+    "platform": "leetcode",
+    "filename": "medium_2728.json"
+  }
+]
