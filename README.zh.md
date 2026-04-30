@@ -15,24 +15,46 @@ Codex adapter。
 ## 快速开始
 
 ```bash
-python main.py --input examples/codex_failed_run_001.jsonl --output out/codex_eval
+trace-agent eval --input examples/codex_failed_run_001.jsonl --output out/codex_eval
 ```
 
 评测一个目录：
 
 ```bash
-python main.py --input data/lcb/trajectories --output out/lcb_eval
+trace-agent eval --input data/lcb/trajectories --output out/lcb_eval
 ```
 
 CI 风格退出码：
 
 ```bash
-python main.py --input examples/codex_failed_run_001.jsonl --output out/codex_eval --ci
+trace-agent eval --input examples/codex_failed_run_001.jsonl --output out/codex_eval --ci
 ```
 
 - `0`：工具运行成功，且没有失败或中/高风险轨迹
 - `1`：评测成功，但至少一个轨迹失败或达到中/高风险
 - `2`：工具错误、输入非法或格式不支持
+
+旧的平铺参数形式仍然兼容：
+
+```bash
+trace-eval --input examples/codex_failed_run_001.jsonl --output out/codex_eval
+```
+
+## 命令
+
+```bash
+# 拉取一小组 LiveCodeBench 题目到 data/lcb/problems
+trace-agent lcb fetch
+
+# 调用 Codex 跑一道 easy 题，并保存 JSONL 轨迹
+trace-agent lcb run --difficulty easy --limit 1
+
+# 评测生成的 LiveCodeBench 轨迹
+trace-agent lcb eval
+```
+
+如果是在源码目录里直接运行、还没安装包，可以在前面加 `uv run`，例如：
+`uv run trace-agent eval --input ... --output ...`。
 
 ## 输出文件
 

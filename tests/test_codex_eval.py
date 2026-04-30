@@ -1,9 +1,12 @@
+import contextlib
+import io
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
 from evaluator import compute_metrics, discover_inputs, evaluate_file, summarize_batch
+from main import build_parser, main as cli_main
 from models import Diagnosis, NormalizedStep
 from parser import load_trajectory
 from report import format_diagnosis_md
@@ -65,6 +68,59 @@ class CodexEvalTests(unittest.TestCase):
             self.assertEqual(summary.failed, 1)
             self.assertEqual(summary.succeeded, 1)
 
+    def test_cli_eval_subcommand_writes_reports(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            input_path = root / "run.jsonl"
+            output_dir = root / "out"
+            write_jsonl(input_path, sample_events())
+
+            exit_code = cli_main([
+                "eval",
+                "--input",
+                str(input_path),
+                "--output",
+                str(output_dir),
+                "--quiet",
+            ])
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue((output_dir / "eval_result.json").exists())
+            self.assertTrue((output_dir / "batch_summary.json").exists())
+
+    def test_cli_legacy_eval_flags_still_work(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            input_path = root / "run.jsonl"
+            output_dir = root / "out"
+            write_jsonl(input_path, sample_events())
+
+            exit_code = cli_main([
+                "--input",
+                str(input_path),
+                "--output",
+                str(output_dir),
+                "--quiet",
+            ])
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue((output_dir / "eval_summary.md").exists())
+
+    def test_lcb_eval_defaults_to_generated_trajectory_paths(self):
+        parser = build_parser()
+        args = parser.parse_args(["lcb", "eval", "--quiet"])
+
+        self.assertEqual(args.input, "data/lcb/trajectories")
+        self.assertEqual(args.output, "out/lcb_eval")
+        self.assertTrue(args.quiet)
+
+    def test_top_level_help_is_not_rewritten_to_eval_command(self):
+        with io.StringIO() as buffer, contextlib.redirect_stdout(buffer):
+            with self.assertRaises(SystemExit) as ctx:
+                cli_main(["--help"])
+
+        self.assertEqual(ctx.exception.code, 0)
+
     def test_pytest_error_counts_as_failed_test_even_with_zero_failed(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "run.jsonl"
@@ -107,6 +163,17 @@ class CodexEvalTests(unittest.TestCase):
         )
 
         self.assertEqual(compute_metrics([step]).failed_test_steps, 0)
+
+    def test_repeated_empty_agent_messages_are_not_suspicious_commands(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "run.jsonl"
+            write_jsonl(path, agent_message_only_events())
+
+            result = evaluate_file(path)
+
+            self.assertEqual(result.final_status, "success")
+            self.assertEqual(result.metrics.suspicious_steps, 0)
+            self.assertEqual(result.metrics.risk_level, "low")
 
     def test_diagnosis_markdown_escapes_table_cells(self):
         step = NormalizedStep(
@@ -220,6 +287,37 @@ def patch_then_pytest_events(output: str, final_failure: bool = False) -> list[d
     else:
         events.append({"type": "turn.completed"})
     return events
+
+
+def agent_message_only_events() -> list[dict]:
+    return [
+        {"type": "thread.started", "thread_id": "thread-1"},
+        {
+            "type": "item.completed",
+            "item": {
+                "id": "a1",
+                "type": "agent_message",
+                "text": "I will inspect the task.",
+            },
+        },
+        {
+            "type": "item.completed",
+            "item": {
+                "id": "a2",
+                "type": "agent_message",
+                "text": "The sandbox blocked the command, so I will answer directly.",
+            },
+        },
+        {
+            "type": "item.completed",
+            "item": {
+                "id": "a3",
+                "type": "agent_message",
+                "text": "```python\nprint('solution')\n```",
+            },
+        },
+        {"type": "turn.completed"},
+    ]
 
 
 if __name__ == "__main__":

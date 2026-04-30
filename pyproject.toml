@@ -16,6 +16,7 @@ dependencies = []
 
 [project.scripts]
 agent-trajectory-eval = "main:main"
+trace-agent = "main:main"
 trace-eval = "main:main"
 
 [tool.setuptools]
@@ -23,6 +24,7 @@ py-modules = [
   "analyzer",
   "classifier",
   "evaluator",
+  "lcb",
   "main",
   "models",
   "parser",

@@ -60,10 +60,12 @@ def score_suspicious_steps(steps: list[NormalizedStep], task: str, final_status:
                             break
 
         # Rule D: Repeated command
-        if step.action in seen_actions:
+        action_key = step.action.strip()
+        if action_key and action_key in seen_actions:
             score += 0.15
             reasons.append(f"Repeated command; may be redundant.")
-        seen_actions[step.action] = i
+        if action_key:
+            seen_actions[action_key] = i
 
         # Rule E: Repeated failed test without intervention
         if step.action_type == 'run_test':
