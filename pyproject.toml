@@ -29,6 +29,8 @@ py-modules = [
   "models",
   "parser",
   "report",
+  "runner",
+  "swe",
   "test_signals",
   "tree",
 ]

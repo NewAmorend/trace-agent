@@ -43,6 +43,14 @@ trace-eval --input examples/codex_failed_run_001.jsonl --output out/codex_eval
 ## Commands
 
 ```bash
+# Run Codex in a sandbox, capture JSONL, then evaluate it
+trace-agent run \
+  --output data/runs/task_001.jsonl \
+  --eval-output out/task_001 \
+  -C /path/to/repo \
+  --sandbox workspace-write \
+  "Fix failing tests. Inspect first, edit code, run tests, and stop when tests pass."
+
 # Fetch a small LiveCodeBench sample into data/lcb/problems
 trace-agent lcb fetch
 
@@ -51,6 +59,21 @@ trace-agent lcb run --difficulty easy --limit 1
 
 # Evaluate generated LiveCodeBench trajectories
 trace-agent lcb eval
+
+# Fetch SWE-bench Lite tasks
+trace-agent swe fetch --limit 5
+
+# Prepare a real repo at the task base commit
+trace-agent swe prepare astropy__astropy-12907
+
+# Run Codex on a SWE-bench Lite task in a writable sandbox
+trace-agent swe run astropy__astropy-12907 \
+  --sandbox workspace-write \
+  --timeout 1200 \
+  --eval-output out/swe_astropy_12907
+
+# Evaluate generated SWE trajectories
+trace-agent swe eval
 ```
 
 When running from a checkout without installing the package, prefix commands with

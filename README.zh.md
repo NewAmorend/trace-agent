@@ -43,6 +43,14 @@ trace-eval --input examples/codex_failed_run_001.jsonl --output out/codex_eval
 ## 命令
 
 ```bash
+# 在 sandbox 中运行 Codex，保存 JSONL 轨迹，并立刻评测
+trace-agent run \
+  --output data/runs/task_001.jsonl \
+  --eval-output out/task_001 \
+  -C /path/to/repo \
+  --sandbox workspace-write \
+  "Fix failing tests. Inspect first, edit code, run tests, and stop when tests pass."
+
 # 拉取一小组 LiveCodeBench 题目到 data/lcb/problems
 trace-agent lcb fetch
 
@@ -51,6 +59,21 @@ trace-agent lcb run --difficulty easy --limit 1
 
 # 评测生成的 LiveCodeBench 轨迹
 trace-agent lcb eval
+
+# 拉取 SWE-bench Lite 任务
+trace-agent swe fetch --limit 5
+
+# 将真实仓库准备到任务的 base commit
+trace-agent swe prepare astropy__astropy-12907
+
+# 在可写 sandbox 中让 Codex 修一个 SWE-bench Lite 任务
+trace-agent swe run astropy__astropy-12907 \
+  --sandbox workspace-write \
+  --timeout 1200 \
+  --eval-output out/swe_astropy_12907
+
+# 评测生成的 SWE 轨迹
+trace-agent swe eval
 ```
 
 如果是在源码目录里直接运行、还没安装包，可以在前面加 `uv run`，例如：

@@ -10,6 +10,8 @@ from main import build_parser, main as cli_main
 from models import Diagnosis, NormalizedStep
 from parser import load_trajectory
 from report import format_diagnosis_md
+from runner import build_codex_exec_command
+from swe import build_prompt as build_swe_prompt
 
 
 def write_jsonl(path: Path, events: list[dict]) -> None:
@@ -113,6 +115,97 @@ class CodexEvalTests(unittest.TestCase):
         self.assertEqual(args.input, "data/lcb/trajectories")
         self.assertEqual(args.output, "out/lcb_eval")
         self.assertTrue(args.quiet)
+
+    def test_run_command_parses_sandbox_capture_options(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "run",
+            "Fix failing tests",
+            "--output",
+            "data/runs/task.jsonl",
+            "-C",
+            "/repo",
+            "--sandbox",
+            "workspace-write",
+            "--add-dir",
+            "/tmp/cache",
+            "--eval-output",
+            "out/task",
+        ])
+
+        self.assertEqual(args.prompt, "Fix failing tests")
+        self.assertEqual(args.output, "data/runs/task.jsonl")
+        self.assertEqual(args.cwd, "/repo")
+        self.assertEqual(args.sandbox, "workspace-write")
+        self.assertEqual(args.add_dir, ["/tmp/cache"])
+        self.assertEqual(args.eval_output, "out/task")
+
+    def test_codex_exec_command_includes_sandbox_and_workspace(self):
+        command = build_codex_exec_command(
+            "Fix tests",
+            cwd="/repo",
+            sandbox="workspace-write",
+            model="gpt-5.4",
+            add_dirs=["/tmp/cache"],
+            full_auto=True,
+            skip_git_repo_check=True,
+            ephemeral=True,
+        )
+
+        self.assertEqual(command[:5], ["codex", "exec", "--json", "-C", "/repo"])
+        self.assertIn("--sandbox", command)
+        self.assertIn("workspace-write", command)
+        self.assertIn("--add-dir", command)
+        self.assertIn("/tmp/cache", command)
+        self.assertIn("--full-auto", command)
+        self.assertIn("--skip-git-repo-check", command)
+        self.assertIn("--ephemeral", command)
+        self.assertEqual(command[-1], "Fix tests")
+
+    def test_swe_run_command_parses_long_horizon_options(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "swe",
+            "run",
+            "astropy__astropy-12907",
+            "--sandbox",
+            "workspace-write",
+            "--include-test-patch",
+            "--apply-tests",
+            "--eval-output",
+            "out/swe_task",
+        ])
+
+        self.assertEqual(args.instance, "astropy__astropy-12907")
+        self.assertEqual(args.sandbox, "workspace-write")
+        self.assertTrue(args.include_test_patch)
+        self.assertTrue(args.apply_tests)
+        self.assertEqual(args.eval_output, "out/swe_task")
+
+    def test_swe_eval_defaults_to_generated_trajectory_paths(self):
+        parser = build_parser()
+        args = parser.parse_args(["swe", "eval", "--quiet"])
+
+        self.assertEqual(args.input, "data/swe/trajectories")
+        self.assertEqual(args.output, "out/swe_eval")
+        self.assertTrue(args.quiet)
+
+    def test_swe_prompt_contains_repo_issue_and_instructions(self):
+        prompt = build_swe_prompt({
+            "instance_id": "astropy__astropy-12907",
+            "repo": "astropy/astropy",
+            "base_commit": "abc123",
+            "problem_statement": "Fix separability matrix.",
+            "hints_text": "Look at modeling.",
+            "FAIL_TO_PASS": "[\"test_file.py::test_case\"]",
+            "test_patch": "diff --git a/test_file.py b/test_file.py",
+        }, include_test_patch=True)
+
+        self.assertIn("astropy__astropy-12907", prompt)
+        self.assertIn("Fix separability matrix.", prompt)
+        self.assertIn("Known fail-to-pass tests", prompt)
+        self.assertIn("Reference regression test patch", prompt)
+        self.assertIn("Inspect the repository before editing.", prompt)
 
     def test_top_level_help_is_not_rewritten_to_eval_command(self):
         with io.StringIO() as buffer, contextlib.redirect_stdout(buffer):
