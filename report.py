@@ -128,7 +128,7 @@ def write_batch_summary(output_dir: str | Path, summary: BatchSummary, results: 
 def format_diagnosis_md(task: str, final_status: str, steps: list[NormalizedStep], diagnosis: Diagnosis) -> str:
     """Format diagnosis as Markdown."""
     lines = [
-        "# Codex Trajectory Diagnosis",
+        "# Agent Trajectory Diagnosis",
         "",
         "## Task",
         task,
@@ -212,7 +212,7 @@ def format_eval_summary_md(result: EvalResult) -> str:
     ]
 
     if result.failure_message:
-        lines.extend(["## Codex Failure Message", result.failure_message, ""])
+        lines.extend(["## Failure Message", result.failure_message, ""])
 
     if result.diagnosis.critical_step:
         lines.extend([
@@ -233,8 +233,8 @@ def format_batch_summary_md(summary: BatchSummary, results: list[EvalResult]) ->
         "",
         "## Totals",
         f"- Total trajectories: {summary.total}",
-        f"- Codex success: {summary.succeeded}",
-        f"- Codex failed: {summary.failed}",
+        f"- Succeeded: {summary.succeeded}",
+        f"- Failed: {summary.failed}",
         f"- High risk: {summary.high_risk}",
         f"- Medium risk: {summary.medium_risk}",
         f"- Low risk: {summary.low_risk}",

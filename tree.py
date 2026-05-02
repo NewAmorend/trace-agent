@@ -47,7 +47,10 @@ def render_trace_tree(nodes: list[TraceNode]) -> str:
             change_label = "state_change" if step.state_change else "explore"
             label = f"[{step.stage} | {step.action_type} | {change_label}]"
 
-            lines.append(f"  - Step {step.step_id} {label} {step.action}")
+            display = step.action
+            if not display and step.item_type == 'agent_message' and step.observation:
+                display = f"~ {step.observation[:80].splitlines()[0]}"
+            lines.append(f"  - Step {step.step_id} {label} {display}")
 
         # Show transition to next state
         if state.children:

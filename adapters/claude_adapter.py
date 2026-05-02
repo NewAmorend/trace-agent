@@ -82,7 +82,7 @@ class ClaudeAdapter(BaseAdapter):
                             )
                             action = f"apply_patch {path}"
                             item_type = 'file_change'
-                            verb = 'write' if tool_name == 'Write' else 'edit'
+                            verb = 'create' if tool_name == 'Write' else 'update'
                             diff = f"{verb}: {path}"
                         else:
                             action = tool_name

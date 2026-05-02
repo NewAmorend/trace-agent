@@ -29,6 +29,8 @@ def classify_action_type(action: str, diff: str | None) -> str:
         r'\bgrep\b',
         r'\bfind\b',
         r'\bweb_search\b',
+        r'\bglob\s*\{',       # Claude Glob tool
+        r'\bwebsearch\s*\{',  # Claude WebSearch tool
     ]
     if any(re.search(pattern, action_lower) for pattern in search_patterns):
         return 'search'
@@ -42,6 +44,8 @@ def classify_action_type(action: str, diff: str | None) -> str:
         r'\btail\b',
         r'\blesser\b',
         r'\bless\b',
+        r'\bread\s*\{',      # Claude Read tool
+        r'\bwebfetch\s*\{',  # Claude WebFetch tool
     ]
     if any(re.search(pattern, action_lower) for pattern in inspect_patterns):
         return 'inspect_file'
