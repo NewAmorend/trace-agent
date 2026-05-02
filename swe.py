@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
-from runner import CodexRunResult, run_codex_trace
+from runner import CodexRunResult, run_claude_trace, run_codex_trace
 
 
 DEFAULT_DATASET = "princeton-nlp/SWE-bench_Lite"
@@ -161,8 +161,9 @@ def run_task(
     apply_tests: bool = False,
     timeout: int | None = None,
     eval_output: str | Path | None = None,
+    agent: str = "codex",
 ) -> tuple[CodexRunResult, Path]:
-    """Prepare a SWE workspace, run Codex, and capture the trajectory."""
+    """Prepare a SWE workspace, run an agent, and capture the trajectory."""
     task = load_task(instance_id, tasks_dir)
     workspace = prepare_workspace(task, worktrees_dir)
     if apply_tests:
@@ -170,14 +171,24 @@ def run_task(
 
     prompt = build_prompt(task, include_test_patch=include_test_patch)
     trajectory_path = Path(trajectories_dir) / f"{instance_id}.jsonl"
-    result = run_codex_trace(
-        prompt,
-        output=trajectory_path,
-        cwd=workspace,
-        sandbox=sandbox,
-        model=model,
-        profile=profile,
-        full_auto=full_auto,
-        timeout=timeout,
-    )
+
+    if agent == "claude":
+        result = run_claude_trace(
+            prompt,
+            output=trajectory_path,
+            cwd=workspace,
+            model=model,
+            timeout=timeout,
+        )
+    else:
+        result = run_codex_trace(
+            prompt,
+            output=trajectory_path,
+            cwd=workspace,
+            sandbox=sandbox,
+            model=model,
+            profile=profile,
+            full_auto=full_auto,
+            timeout=timeout,
+        )
     return result, workspace

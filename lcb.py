@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from urllib.request import urlopen
 
+from runner import run_claude_trace, run_codex_trace
+
 
 DEFAULT_PROBLEMS_DIR = Path("data/lcb/problems")
 DEFAULT_TRAJECTORIES_DIR = Path("data/lcb/trajectories")
@@ -106,8 +108,10 @@ def run_problem(
     problems_dir: str | Path = DEFAULT_PROBLEMS_DIR,
     trajectories_dir: str | Path = DEFAULT_TRAJECTORIES_DIR,
     timeout: int = 300,
+    agent: str = "codex",
 ) -> Path | None:
-    """Run Codex against one problem file and save the JSONL trajectory."""
+    """Run an agent against one problem file and save the JSONL trajectory."""
+
     problem_path = Path(problems_dir) / problem_file
     with problem_path.open("r") as f:
         problem = json.load(f)
@@ -117,41 +121,29 @@ def run_problem(
     prompt = build_prompt(problem)
 
     output_dir = Path(trajectories_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{difficulty}_{qid}.jsonl"
 
-    print(f"  Running {problem_file}...")
+    print(f"  Running {problem_file} [{agent}]...")
     print(f"    Prompt: {problem.get('question_title', '???')[:50]}")
 
     try:
-        result = subprocess.run(
-            ["codex", "exec", "--json", prompt],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+        if agent == "claude":
+            result = run_claude_trace(prompt, output=output_path, timeout=timeout)
+        else:
+            result = run_codex_trace(prompt, output=output_path, cwd=".", timeout=timeout)
     except FileNotFoundError:
-        print("    ERROR: 'codex' CLI not found. Is it installed?", file=sys.stderr)
+        print(f"    ERROR: '{agent}' CLI not found. Is it installed?", file=sys.stderr)
         raise
     except subprocess.TimeoutExpired:
-        print(f"    TIMEOUT: Codex took > {timeout}s, skipping")
+        print(f"    TIMEOUT: {agent} took > {timeout}s, skipping")
         return None
 
-    output = result.stdout
-    if not output.strip():
-        print(f"    WARNING: no output from codex (exit code {result.returncode})")
-        if result.stderr:
-            print(f"    stderr: {result.stderr[:200]}")
+    if result.event_count == 0:
+        print(f"    WARNING: no output from {agent} (exit code {result.returncode})")
         return None
 
-    if result.returncode != 0:
-        print(f"    WARNING: codex exited with {result.returncode}; saving trajectory")
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(output)
-
-    lines = output.strip().splitlines()
-    print(f"    Saved {len(lines)} events to {output_path.name}")
-    return output_path
+    return result.trajectory_path
 
 
 def run_lcb(
@@ -160,8 +152,9 @@ def run_lcb(
     difficulty: str = "all",
     limit: int | None = None,
     timeout: int = 300,
+    agent: str = "codex",
 ) -> dict[str, list[str]]:
-    """Run Codex against problems listed in the LiveCodeBench manifest."""
+    """Run an agent against problems listed in the LiveCodeBench manifest."""
     manifest_path = Path(problems_dir) / "manifest.json"
     if not manifest_path.exists():
         raise FileNotFoundError(f"{manifest_path} not found. Run `trace-agent lcb fetch` first.")
@@ -184,7 +177,7 @@ def run_lcb(
         print("No problems to run.")
         return {"success": [], "skipped": []}
 
-    print(f"Running {len(manifest)} problem(s) with Codex CLI...\n")
+    print(f"Running {len(manifest)} problem(s) with {agent}...\n")
 
     results = {"success": [], "skipped": []}
     for entry in manifest:
@@ -193,6 +186,7 @@ def run_lcb(
             problems_dir=problems_dir,
             trajectories_dir=trajectories_dir,
             timeout=timeout,
+            agent=agent,
         )
         if path:
             results["success"].append(entry["filename"])
