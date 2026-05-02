@@ -117,6 +117,7 @@ def run_lcb_run_command(args: argparse.Namespace) -> int:
             difficulty=args.difficulty,
             limit=args.limit,
             timeout=args.timeout,
+            agent=args.agent,
         )
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -126,19 +127,29 @@ def run_lcb_run_command(args: argparse.Namespace) -> int:
 
 def run_codex_command(args: argparse.Namespace) -> int:
     try:
-        result = run_codex_trace(
-            args.prompt,
-            output=args.output,
-            cwd=args.cwd,
-            sandbox=args.sandbox,
-            model=args.model,
-            profile=args.profile,
-            add_dirs=args.add_dir,
-            full_auto=args.full_auto,
-            skip_git_repo_check=args.skip_git_repo_check,
-            ephemeral=args.ephemeral,
-            timeout=args.timeout,
-        )
+        if args.agent == "claude":
+            from runner import run_claude_trace
+            result = run_claude_trace(
+                args.prompt,
+                output=args.output,
+                cwd=args.cwd,
+                model=args.model,
+                timeout=args.timeout,
+            )
+        else:
+            result = run_codex_trace(
+                args.prompt,
+                output=args.output,
+                cwd=args.cwd,
+                sandbox=args.sandbox,
+                model=args.model,
+                profile=args.profile,
+                add_dirs=args.add_dir,
+                full_auto=args.full_auto,
+                skip_git_repo_check=args.skip_git_repo_check,
+                ephemeral=args.ephemeral,
+                timeout=args.timeout,
+            )
         if args.eval_output:
             eval_args = argparse.Namespace(
                 input=str(result.trajectory_path),
@@ -196,6 +207,7 @@ def run_swe_run_command(args: argparse.Namespace) -> int:
             include_test_patch=args.include_test_patch,
             apply_tests=args.apply_tests,
             timeout=args.timeout,
+            agent=args.agent,
         )
         print(f"Workspace: {workspace}")
         if args.eval_output:
@@ -258,6 +270,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional report directory; evaluate the captured trajectory after the run",
     )
     run_trace_parser.add_argument("--quiet", action="store_true")
+    run_trace_parser.add_argument(
+        "--agent",
+        choices=["codex", "claude"],
+        default="codex",
+        help="Agent harness to use (default: codex)",
+    )
     run_trace_parser.set_defaults(func=run_codex_command)
 
     lcb_parser = subparsers.add_parser(
@@ -289,6 +307,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument("--limit", type=int, default=None)
     run_parser.add_argument("--timeout", type=int, default=300)
+    run_parser.add_argument(
+        "--agent",
+        choices=["codex", "claude"],
+        default="codex",
+        help="Agent harness to use (default: codex)",
+    )
     run_parser.set_defaults(func=run_lcb_run_command)
 
     lcb_eval_parser = lcb_subparsers.add_parser(
@@ -358,6 +382,12 @@ def build_parser() -> argparse.ArgumentParser:
     swe_run_parser.add_argument("--timeout", type=int, default=None)
     swe_run_parser.add_argument("--eval-output", default=None)
     swe_run_parser.add_argument("--quiet", action="store_true")
+    swe_run_parser.add_argument(
+        "--agent",
+        choices=["codex", "claude"],
+        default="codex",
+        help="Agent harness to use (default: codex)",
+    )
     swe_run_parser.set_defaults(func=run_swe_run_command)
 
     swe_eval_parser = swe_subparsers.add_parser(

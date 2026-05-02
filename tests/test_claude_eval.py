@@ -5,6 +5,7 @@ from pathlib import Path
 
 from adapters.claude_adapter import ClaudeAdapter
 from evaluator import evaluate_file
+from main import build_parser
 from runner import build_claude_exec_command
 
 
@@ -168,6 +169,38 @@ class ClaudeRunnerCommandTests(unittest.TestCase):
     def test_build_claude_exec_command_without_model_has_no_model_flag(self):
         cmd = build_claude_exec_command("Fix the bug")
         self.assertNotIn("--model", cmd)
+
+
+class ClaudeCLIFlagTests(unittest.TestCase):
+    def test_run_defaults_to_codex(self):
+        parser = build_parser()
+        args = parser.parse_args(["run", "Fix bug", "--output", "out.jsonl"])
+        self.assertEqual(args.agent, "codex")
+
+    def test_run_accepts_claude_agent(self):
+        parser = build_parser()
+        args = parser.parse_args(["run", "Fix bug", "--output", "out.jsonl", "--agent", "claude"])
+        self.assertEqual(args.agent, "claude")
+
+    def test_lcb_run_defaults_to_codex(self):
+        parser = build_parser()
+        args = parser.parse_args(["lcb", "run"])
+        self.assertEqual(args.agent, "codex")
+
+    def test_lcb_run_accepts_claude_agent(self):
+        parser = build_parser()
+        args = parser.parse_args(["lcb", "run", "--agent", "claude"])
+        self.assertEqual(args.agent, "claude")
+
+    def test_swe_run_defaults_to_codex(self):
+        parser = build_parser()
+        args = parser.parse_args(["swe", "run", "instance-1"])
+        self.assertEqual(args.agent, "codex")
+
+    def test_swe_run_accepts_claude_agent(self):
+        parser = build_parser()
+        args = parser.parse_args(["swe", "run", "instance-1", "--agent", "claude"])
+        self.assertEqual(args.agent, "claude")
 
 
 if __name__ == "__main__":
