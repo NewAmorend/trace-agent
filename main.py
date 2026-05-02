@@ -95,6 +95,21 @@ def run_eval_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_tree_command(args: argparse.Namespace) -> int:
+    try:
+        from classifier import normalize_steps
+        from parser import load_trajectory
+        from tree import build_trace_tree, render_trace_tree
+        trajectory = load_trajectory(args.input)
+        normalized = normalize_steps(trajectory.steps)
+        tree_md = render_trace_tree(build_trace_tree(normalized))
+        print(tree_md)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 2
+    return 0
+
+
 def run_lcb_fetch_command(args: argparse.Namespace) -> int:
     try:
         fetch_problems(
@@ -239,6 +254,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_eval_args(eval_parser)
     eval_parser.set_defaults(func=run_eval_command)
+
+    tree_parser = subparsers.add_parser(
+        "tree",
+        help="Print the trace tree for a JSONL trajectory",
+    )
+    tree_parser.add_argument("input", help="Path to a JSONL trajectory file")
+    tree_parser.set_defaults(func=run_tree_command)
 
     run_trace_parser = subparsers.add_parser(
         "run",
