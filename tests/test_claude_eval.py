@@ -96,7 +96,6 @@ class ClaudeAdapterTransformTests(unittest.TestCase):
         self.assertEqual(self.trajectory.final_status, "success")
 
     def test_step_count(self):
-        # text block (agent_message) + Bash (command_execution) + Write (file_change) = 3
         self.assertEqual(len(self.trajectory.steps), 3)
 
     def test_text_block_becomes_agent_message(self):

@@ -45,7 +45,7 @@ class ClaudeAdapter(BaseAdapter):
                     block_type = block.get('type', '')
 
                     if block_type == 'thinking':
-                        pending_thought = block.get('thinking', '') or pending_thought
+                        pending_thought = block.get('thinking') or None
                         continue
 
                     if block_type == 'text':
@@ -82,7 +82,8 @@ class ClaudeAdapter(BaseAdapter):
                             )
                             action = f"apply_patch {path}"
                             item_type = 'file_change'
-                            diff = path
+                            verb = 'write' if tool_name == 'Write' else 'edit'
+                            diff = f"{verb}: {path}"
                         else:
                             action = tool_name
                             if tool_input:
