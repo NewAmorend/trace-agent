@@ -5,6 +5,7 @@ from pathlib import Path
 
 from adapters.claude_adapter import ClaudeAdapter
 from evaluator import evaluate_file
+from runner import build_claude_exec_command
 
 
 def write_jsonl(path: Path, events: list[dict]) -> None:
@@ -146,6 +147,27 @@ class ClaudeEndToEndEvalTests(unittest.TestCase):
             self.assertEqual(result.metrics.total_steps, 3)
             self.assertEqual(result.metrics.command_steps, 1)
             self.assertEqual(result.metrics.file_change_steps, 1)
+
+
+class ClaudeRunnerCommandTests(unittest.TestCase):
+    def test_build_claude_exec_command_structure(self):
+        cmd = build_claude_exec_command("Fix the bug")
+        self.assertEqual(cmd[0], "claude")
+        self.assertIn("-p", cmd)
+        self.assertIn("Fix the bug", cmd)
+        self.assertIn("--output-format", cmd)
+        idx = cmd.index("--output-format")
+        self.assertEqual(cmd[idx + 1], "stream-json")
+
+    def test_build_claude_exec_command_with_model(self):
+        cmd = build_claude_exec_command("Fix the bug", model="claude-opus-4-7")
+        self.assertIn("--model", cmd)
+        idx = cmd.index("--model")
+        self.assertEqual(cmd[idx + 1], "claude-opus-4-7")
+
+    def test_build_claude_exec_command_without_model_has_no_model_flag(self):
+        cmd = build_claude_exec_command("Fix the bug")
+        self.assertNotIn("--model", cmd)
 
 
 if __name__ == "__main__":

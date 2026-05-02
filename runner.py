@@ -115,6 +115,69 @@ def run_codex_trace(
     )
 
 
+def build_claude_exec_command(
+    prompt: str,
+    *,
+    model: str | None = None,
+) -> list[str]:
+    """Build the claude command used by the Claude runner."""
+    command = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose"]
+    if model:
+        command.extend(["--model", model])
+    return command
+
+
+def run_claude_trace(
+    prompt: str,
+    *,
+    output: str | Path,
+    cwd: str | Path = ".",
+    model: str | None = None,
+    timeout: int | None = None,
+) -> CodexRunResult:
+    """Run Claude Code CLI and write its JSONL event stream to output."""
+    output_path = Path(output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    command = build_claude_exec_command(prompt, model=model)
+
+    print(f"Running Claude Code in {Path(cwd).resolve()}...")
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=str(cwd),
+        )
+    except FileNotFoundError:
+        print("ERROR: 'claude' CLI not found. Is it installed?", file=sys.stderr)
+        raise
+    except subprocess.TimeoutExpired as exc:
+        if exc.stdout:
+            output_path.write_text(_as_text(exc.stdout))
+        raise
+
+    output_path.write_text(result.stdout)
+    event_count = len([line for line in result.stdout.splitlines() if line.strip()])
+
+    if result.stderr:
+        stderr_path = output_path.with_suffix(output_path.suffix + ".stderr")
+        stderr_path.write_text(result.stderr)
+        print(f"Claude stderr saved to {stderr_path}")
+
+    print(f"Saved {event_count} events to {output_path}")
+    if result.returncode != 0:
+        print(f"WARNING: claude exited with {result.returncode}")
+
+    return CodexRunResult(
+        trajectory_path=output_path,
+        returncode=result.returncode,
+        event_count=event_count,
+        stderr=result.stderr,
+    )
+
+
 def _as_text(value: str | bytes) -> str:
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
