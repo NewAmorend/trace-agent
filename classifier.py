@@ -146,7 +146,7 @@ def is_state_changing(action_type: str, action: str, diff: str | None) -> bool:
 
 def normalize_steps(
     steps: list[Step],
-    judge: "Callable[[Step], NormalizedStep] | None" = None,
+    judge: Callable[[Step], NormalizedStep] | None = None,
 ) -> list[NormalizedStep]:
     """
     Convert Steps to NormalizedSteps with classification.
