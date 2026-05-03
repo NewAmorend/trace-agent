@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from models import Diagnosis, EvalMetrics, EvalResult
+from models import BatchSummary, Diagnosis, EvalMetrics, EvalResult
 from report import (
     format_batch_summary_md,
     format_diagnosis_md,
@@ -93,15 +93,14 @@ class FormatEvalSummaryMdTests(unittest.TestCase):
 
 class FormatBatchSummaryMdTests(unittest.TestCase):
     def test_empty_batch_renders_none(self):
-        from models import BatchSummary
         out = format_batch_summary_md(BatchSummary(), [])
         self.assertIn("none", out)
 
     def test_pipe_in_action_is_escaped(self):
         result = make_eval_result(critical=True, final_status="failed")
         result.normalized_steps[1].action = "echo a | tee b"
-        from evaluator import summarize_batch
-        out = format_batch_summary_md(summarize_batch([result]), [result])
+        summary = BatchSummary(total=1, failed=1, medium_risk=1)
+        out = format_batch_summary_md(summary, [result])
         self.assertNotIn("a | tee b |", out)
 
 
