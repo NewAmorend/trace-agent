@@ -154,6 +154,7 @@ class LocateFailureTests(unittest.TestCase):
                 diff="tests/test_x.py",
                 suspicious_score=0.45,
                 suspicious_reasons=["Edited test file after implementation failed tests; possible test bypass."],
+                matched_pattern_names=["test_edit_after_impl_failure"],
             )
         ]
         out = locate_failure(steps, "failed")
@@ -215,6 +216,7 @@ class DiagnosisEnhancementTests(unittest.TestCase):
                 diff="tests/x.py",
                 suspicious_score=0.45,
                 suspicious_reasons=["Edited test file after implementation failed tests; possible test bypass."],
+                matched_pattern_names=["test_edit_after_impl_failure"],
             )
         ]
         diag = locate_failure(steps, "failed")

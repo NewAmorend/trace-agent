@@ -21,6 +21,11 @@ def _apply(step: NormalizedStep, pattern_name: str, reason: str) -> None:
     pattern = PATTERNS[pattern_name]
     step.suspicious_score += pattern.score_weight
     step.suspicious_reasons.append(reason)
+    names = getattr(step, "_matched_pattern_names", None)
+    if names is None:
+        names = []
+        step._matched_pattern_names = names
+    names.append(pattern_name)
 
 
 def score_suspicious_steps(steps: list[NormalizedStep], task: str, final_status: str) -> list[NormalizedStep]:
@@ -42,6 +47,7 @@ def score_suspicious_steps(steps: list[NormalizedStep], task: str, final_status:
     for i, step in enumerate(steps):
         step.suspicious_score = 0.0
         step.suspicious_reasons = []
+        step._matched_pattern_names = []
 
         # Rule A: Edit test files
         if step.action_type == 'edit_file' and _is_test_path(step.action, step.diff or ""):
@@ -122,20 +128,17 @@ def _confidence_for(score: float) -> str:
     return "low"
 
 
-def _patterns_matched(reasons: list[str]) -> list[Pattern]:
-    """Map reason strings back to their patterns by substring matching the description."""
-    matched: list[Pattern] = []
+def _patterns_matched(step: NormalizedStep) -> list[Pattern]:
+    """Return the patterns that fired on this step, in order."""
+    names = getattr(step, "_matched_pattern_names", None) or []
     seen: set[str] = set()
-    for reason in reasons:
-        reason_lc = reason.lower()
-        for pattern in PATTERNS.values():
-            if pattern.name in seen:
-                continue
-            keywords = [w for w in pattern.description.lower().split() if len(w) > 4]
-            if any(kw in reason_lc for kw in keywords[:3]):
-                matched.append(pattern)
-                seen.add(pattern.name)
-    return matched
+    result: list[Pattern] = []
+    for name in names:
+        if name in seen:
+            continue
+        seen.add(name)
+        result.append(PATTERNS[name])
+    return result
 
 
 def locate_failure(steps: list[NormalizedStep], final_status: str) -> Diagnosis:
@@ -182,7 +185,7 @@ def locate_failure(steps: list[NormalizedStep], final_status: str) -> Diagnosis:
         diagnosis.replay_branch_step = critical.step_id
         diagnosis.confidence = _confidence_for(critical.suspicious_score)
 
-        matched = _patterns_matched(critical.suspicious_reasons)
+        matched = _patterns_matched(critical)
         if matched:
             diagnosis.error_type = matched[0].error_type
             diagnosis.replay_hint = matched[0].repair_hint

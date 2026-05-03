@@ -48,15 +48,7 @@ def write_outputs(
         f.write(tree_md)
 
     # Write diagnosis.json
-    diagnosis_data = {
-        'critical_step_id': diagnosis.critical_step.step_id if diagnosis.critical_step else None,
-        'failure_stage': diagnosis.failure_stage,
-        'error_type': diagnosis.error_type,
-        'replay_branch_step': diagnosis.replay_branch_step,
-        'replay_hint': diagnosis.replay_hint,
-        'confidence': diagnosis.confidence,
-        'repair_suggestions': list(diagnosis.repair_suggestions),
-    }
+    diagnosis_data = _diagnosis_dict(diagnosis)
 
     with open(os.path.join(output_dir, 'diagnosis.json'), 'w') as f:
         json.dump(diagnosis_data, f, indent=2)

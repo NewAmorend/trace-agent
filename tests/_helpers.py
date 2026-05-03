@@ -40,12 +40,13 @@ def make_normalized_step(
     state_change: bool = False,
     suspicious_score: float = 0.0,
     suspicious_reasons: list[str] | None = None,
+    matched_pattern_names: list[str] | None = None,
     thought: str | None = None,
     event_id: str | None = None,
     exit_code: int | None = None,
     status: str | None = None,
 ) -> NormalizedStep:
-    return NormalizedStep(
+    step = NormalizedStep(
         step_id=step_id,
         event_id=event_id,
         thought=thought,
@@ -61,3 +62,6 @@ def make_normalized_step(
         suspicious_score=suspicious_score,
         suspicious_reasons=suspicious_reasons or [],
     )
+    if matched_pattern_names is not None:
+        step._matched_pattern_names = list(matched_pattern_names)
+    return step
