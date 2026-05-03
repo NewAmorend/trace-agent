@@ -2,6 +2,7 @@
 """Main CLI for Agent Trajectory Eval."""
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -54,8 +55,8 @@ def run_eval_command(args: argparse.Namespace) -> int:
         output_dir = Path(args.output)
         results = []
 
-        json_mode = getattr(args, 'format', 'text') == 'json'
-        quiet = getattr(args, 'quiet', False) or json_mode
+        json_mode = args.format == 'json'
+        quiet = args.quiet or json_mode
 
         if not quiet:
             print(f"Evaluating {len(inputs)} Codex trajector{'y' if len(inputs) == 1 else 'ies'}...")
@@ -76,7 +77,6 @@ def run_eval_command(args: argparse.Namespace) -> int:
         write_batch_summary(output_dir, summary, results)
 
         if json_mode:
-            import json
             payload = {
                 "summary": {
                     "total": summary.total,
@@ -212,6 +212,7 @@ def run_codex_command(args: argparse.Namespace) -> int:
                 output=args.eval_output,
                 ci=False,
                 quiet=args.quiet,
+                format='text',
             )
             eval_code = run_eval_command(eval_args)
             if eval_code:
@@ -272,6 +273,7 @@ def run_swe_run_command(args: argparse.Namespace) -> int:
                 output=args.eval_output,
                 ci=False,
                 quiet=args.quiet,
+                format='text',
             )
             eval_code = run_eval_command(eval_args)
             if eval_code:
