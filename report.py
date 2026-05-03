@@ -53,7 +53,9 @@ def write_outputs(
         'failure_stage': diagnosis.failure_stage,
         'error_type': diagnosis.error_type,
         'replay_branch_step': diagnosis.replay_branch_step,
-        'replay_hint': diagnosis.replay_hint
+        'replay_hint': diagnosis.replay_hint,
+        'confidence': diagnosis.confidence,
+        'repair_suggestions': list(diagnosis.repair_suggestions),
     }
 
     with open(os.path.join(output_dir, 'diagnosis.json'), 'w') as f:
@@ -172,7 +174,7 @@ def format_diagnosis_md(task: str, final_status: str, steps: list[NormalizedStep
 
         lines.append("")
 
-    # Replay suggestion
+    # Replay suggestion + confidence + repair suggestions
     if diagnosis.replay_branch_step:
         lines.extend([
             "## Replay Suggestion",
@@ -180,8 +182,22 @@ def format_diagnosis_md(task: str, final_status: str, steps: list[NormalizedStep
             f"Branch at Step {diagnosis.replay_branch_step}",
             "",
             diagnosis.replay_hint,
-            ""
+            "",
         ])
+
+    if diagnosis.critical_step:
+        lines.extend([
+            "## Confidence",
+            diagnosis.confidence,
+            "",
+        ])
+
+    if diagnosis.repair_suggestions:
+        lines.append("## Repair Suggestions")
+        lines.append("")
+        for suggestion in diagnosis.repair_suggestions:
+            lines.append(f"- {suggestion}")
+        lines.append("")
 
     return "\n".join(lines)
 
@@ -280,6 +296,8 @@ def _diagnosis_dict(diagnosis: Diagnosis) -> dict:
         'error_type': diagnosis.error_type,
         'replay_branch_step': diagnosis.replay_branch_step,
         'replay_hint': diagnosis.replay_hint,
+        'confidence': diagnosis.confidence,
+        'repair_suggestions': list(diagnosis.repair_suggestions),
     }
 
 

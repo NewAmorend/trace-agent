@@ -176,5 +176,56 @@ class LocateFailureTests(unittest.TestCase):
         self.assertIn("test", out.replay_hint.lower())
 
 
+class DiagnosisEnhancementTests(unittest.TestCase):
+    def test_high_confidence_when_max_score_high(self):
+        steps = [
+            make_normalized_step(
+                step_id=1,
+                action="apply_patch tests/x.py",
+                action_type="edit_file",
+                state_change=True,
+                diff="tests/x.py",
+                suspicious_score=0.45,
+                suspicious_reasons=["Edited test file after implementation failed tests; possible test bypass."],
+            )
+        ]
+        diag = locate_failure(steps, "failed")
+        self.assertEqual(diag.confidence, "high")
+
+    def test_low_confidence_when_no_suspicious_steps(self):
+        steps = [
+            make_normalized_step(
+                step_id=1,
+                action="apply_patch x.py",
+                action_type="edit_file",
+                state_change=True,
+                diff="x.py",
+            )
+        ]
+        diag = locate_failure(steps, "failed")
+        self.assertEqual(diag.confidence, "low")
+
+    def test_repair_suggestions_populated_for_test_bypass(self):
+        steps = [
+            make_normalized_step(
+                step_id=1,
+                action="apply_patch tests/x.py",
+                action_type="edit_file",
+                state_change=True,
+                diff="tests/x.py",
+                suspicious_score=0.45,
+                suspicious_reasons=["Edited test file after implementation failed tests; possible test bypass."],
+            )
+        ]
+        diag = locate_failure(steps, "failed")
+        self.assertTrue(diag.repair_suggestions, "expected non-empty repair_suggestions")
+        self.assertTrue(any("implementation" in s.lower() for s in diag.repair_suggestions))
+
+    def test_no_failure_has_empty_repair_suggestions(self):
+        diag = locate_failure([], "success")
+        self.assertEqual(diag.repair_suggestions, [])
+        self.assertEqual(diag.confidence, "low")
+
+
 if __name__ == "__main__":
     unittest.main()

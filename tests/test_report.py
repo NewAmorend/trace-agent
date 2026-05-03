@@ -130,5 +130,32 @@ class WriteEvalResultTests(unittest.TestCase):
             self.assertEqual(data["final_status"], "success")
 
 
+class DiagnosisReportRendersNewFieldsTests(unittest.TestCase):
+    def test_diagnosis_json_includes_confidence_and_suggestions(self):
+        result = make_eval_result(critical=True, final_status="failed")
+        result.diagnosis.confidence = "high"
+        result.diagnosis.repair_suggestions = ["Investigate the impl, not the tests."]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "r"
+            write_eval_result(out_dir, result)
+            data = json.loads((out_dir / "diagnosis.json").read_text())
+            self.assertEqual(data["confidence"], "high")
+            self.assertIn("Investigate", data["repair_suggestions"][0])
+
+    def test_diagnosis_md_includes_confidence_section(self):
+        result = make_eval_result(critical=True, final_status="failed")
+        result.diagnosis.confidence = "high"
+        result.diagnosis.repair_suggestions = ["Step A.", "Step B."]
+
+        out = format_diagnosis_md(
+            result.task, result.final_status, result.normalized_steps, result.diagnosis,
+        )
+        self.assertIn("Confidence", out)
+        self.assertIn("high", out)
+        self.assertIn("Step A.", out)
+        self.assertIn("Step B.", out)
+
+
 if __name__ == "__main__":
     unittest.main()

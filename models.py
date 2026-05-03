@@ -53,6 +53,8 @@ class Diagnosis:
     error_type: str = ""
     replay_branch_step: Optional[int] = None
     replay_hint: str = ""
+    confidence: str = "low"
+    repair_suggestions: list[str] = field(default_factory=list)
 
 
 @dataclass
