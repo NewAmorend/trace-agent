@@ -40,6 +40,12 @@ def add_eval_args(
         action='store_true',
         help='Only print errors and final result'
     )
+    parser.add_argument(
+        '--format',
+        choices=['text', 'json'],
+        default='text',
+        help='Output format for stdout summary (default: text)',
+    )
 
 
 def run_eval_command(args: argparse.Namespace) -> int:
@@ -48,11 +54,14 @@ def run_eval_command(args: argparse.Namespace) -> int:
         output_dir = Path(args.output)
         results = []
 
-        if not args.quiet:
+        json_mode = getattr(args, 'format', 'text') == 'json'
+        quiet = getattr(args, 'quiet', False) or json_mode
+
+        if not quiet:
             print(f"Evaluating {len(inputs)} Codex trajector{'y' if len(inputs) == 1 else 'ies'}...")
 
         for input_file in inputs:
-            if not args.quiet:
+            if not quiet:
                 print(f"  - {input_file}")
             result = evaluate_file(input_file)
             results.append(result)
@@ -66,7 +75,39 @@ def run_eval_command(args: argparse.Namespace) -> int:
         summary = summarize_batch(results)
         write_batch_summary(output_dir, summary, results)
 
-        if not args.quiet:
+        if json_mode:
+            import json
+            payload = {
+                "summary": {
+                    "total": summary.total,
+                    "succeeded": summary.succeeded,
+                    "failed": summary.failed,
+                    "high_risk": summary.high_risk,
+                    "medium_risk": summary.medium_risk,
+                    "low_risk": summary.low_risk,
+                    "common_error_types": summary.common_error_types,
+                },
+                "results": [
+                    {
+                        "source_path": r.source_path,
+                        "task": r.task,
+                        "final_status": r.final_status,
+                        "risk_level": r.metrics.risk_level,
+                        "max_suspicious_score": r.metrics.max_suspicious_score,
+                        "suspicious_steps": r.metrics.suspicious_steps,
+                        "error_type": r.diagnosis.error_type,
+                        "confidence": r.diagnosis.confidence,
+                        "critical_step_id": (
+                            r.diagnosis.critical_step.step_id
+                            if r.diagnosis.critical_step else None
+                        ),
+                        "repair_suggestions": list(r.diagnosis.repair_suggestions),
+                    }
+                    for r in results
+                ],
+            }
+            print(json.dumps(payload, indent=2))
+        elif not quiet:
             print("\nEvaluation complete!")
             print(f"  Output: {output_dir}")
             print(f"  Total: {summary.total}")
