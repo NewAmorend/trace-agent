@@ -113,5 +113,40 @@ class NormalizeStepsTests(unittest.TestCase):
         self.assertEqual(out[0].suspicious_reasons, [])
 
 
+class NormalizeStepsJudgeHookTests(unittest.TestCase):
+    def test_judge_called_for_each_step(self):
+        from models import NormalizedStep
+
+        calls: list[int] = []
+
+        def judge(step):
+            calls.append(step.step_id)
+            return NormalizedStep(
+                step_id=step.step_id,
+                event_id=step.event_id,
+                thought=step.thought,
+                action=step.action,
+                observation=step.observation,
+                diff=step.diff,
+                item_type=step.item_type,
+                exit_code=step.exit_code,
+                status=step.status,
+                action_type="custom",
+                stage="custom-stage",
+                state_change=False,
+            )
+
+        steps = [make_step(step_id=1, action="x"), make_step(step_id=2, action="y")]
+        out = normalize_steps(steps, judge=judge)
+        self.assertEqual(calls, [1, 2])
+        self.assertEqual(out[0].action_type, "custom")
+        self.assertEqual(out[1].stage, "custom-stage")
+
+    def test_default_behavior_is_rule_based(self):
+        steps = [make_step(step_id=1, action="pytest")]
+        out = normalize_steps(steps)
+        self.assertEqual(out[0].action_type, "run_test")
+
+
 if __name__ == "__main__":
     unittest.main()

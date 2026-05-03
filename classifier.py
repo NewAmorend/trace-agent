@@ -1,6 +1,7 @@
 """Classification logic for steps."""
 
 import re
+from typing import Callable
 from models import Step, NormalizedStep
 
 
@@ -143,30 +144,40 @@ def is_state_changing(action_type: str, action: str, diff: str | None) -> bool:
     return False
 
 
-def normalize_steps(steps: list[Step]) -> list[NormalizedStep]:
-    """Convert Steps to NormalizedSteps with classification."""
-    normalized = []
-    for step in steps:
-        action_type = classify_action_type(step.action, step.diff)
-        stage = classify_stage(step.action, action_type, step.observation)
-        state_change = is_state_changing(action_type, step.action, step.diff)
+def normalize_steps(
+    steps: list[Step],
+    judge: "Callable[[Step], NormalizedStep] | None" = None,
+) -> list[NormalizedStep]:
+    """
+    Convert Steps to NormalizedSteps with classification.
 
-        norm_step = NormalizedStep(
-            step_id=step.step_id,
-            event_id=step.event_id,
-            thought=step.thought,
-            action=step.action,
-            observation=step.observation,
-            diff=step.diff,
-            item_type=step.item_type,
-            exit_code=step.exit_code,
-            status=step.status,
-            action_type=action_type,
-            stage=stage,
-            state_change=state_change,
-            suspicious_score=0.0,
-            suspicious_reasons=[]
-        )
-        normalized.append(norm_step)
+    If `judge` is provided, it is called for each step to produce a
+    NormalizedStep, replacing the default rule-based classification.
+    Default behavior (judge=None) is unchanged.
+    """
+    if judge is not None:
+        return [judge(step) for step in steps]
+    return [_rule_classify(step) for step in steps]
 
-    return normalized
+
+def _rule_classify(step: Step) -> NormalizedStep:
+    action_type = classify_action_type(step.action, step.diff)
+    stage = classify_stage(step.action, action_type, step.observation)
+    state_change = is_state_changing(action_type, step.action, step.diff)
+
+    return NormalizedStep(
+        step_id=step.step_id,
+        event_id=step.event_id,
+        thought=step.thought,
+        action=step.action,
+        observation=step.observation,
+        diff=step.diff,
+        item_type=step.item_type,
+        exit_code=step.exit_code,
+        status=step.status,
+        action_type=action_type,
+        stage=stage,
+        state_change=state_change,
+        suspicious_score=0.0,
+        suspicious_reasons=[],
+    )
