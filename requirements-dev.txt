@@ -3,10 +3,10 @@
 # Runtime: stdlib only (no dependencies).
 # Tests:   unittest (stdlib).
 #
-# Optional tools used while developing:
-#   - datasets   (for scripts/fetch_lcb.py and scripts/fetch_swe.py)
+# This file is currently empty by design — fetchers (lcb.py, swe.py,
+# scripts/fetch_lcb.py, scripts/fetch_swe.py) talk to Hugging Face over
+# direct HTTP, so even the optional fetcher path is stdlib-only.
 #
-# Install with:
+# Add lines below if a future dev tool (e.g. mypy, ruff) becomes part of
+# the workflow. Install with:
 #   pip install -r requirements-dev.txt
-
-datasets>=2.0
