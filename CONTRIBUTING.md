@@ -46,6 +46,22 @@ python -m unittest tests.test_classifier -v
 2. Add a rule block to `score_suspicious_steps` in `analyzer.py` that calls `_apply(step, "<pattern_name>", "<reason>")` when the rule matches.
 3. Add a test case in `tests/test_analyzer.py` that constructs the matching trajectory and asserts the score and reason are populated.
 
+## Plugging in a custom step classifier
+
+`classifier.normalize_steps(steps)` accepts an optional `judge` parameter:
+
+```python
+from classifier import normalize_steps
+
+def my_judge(step):
+    # Return a NormalizedStep — typically by calling out to an LLM
+    ...
+
+normalized = normalize_steps(steps, judge=my_judge)
+```
+
+When `judge=None` (default), the rule-based classifier in `classifier.py` is used. When provided, the judge is called once per `Step` and replaces the rule-based path entirely. Downstream stages (`score_suspicious_steps`, `locate_failure`) work unchanged on the result.
+
 ## Coding standards
 
 - No third-party runtime dependencies.

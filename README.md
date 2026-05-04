@@ -95,6 +95,32 @@ Batch runs also write:
 - `batch_summary.json`
 - `batch_summary.md`
 
+### JSON output (CI-friendly)
+
+Pass `--format json` to emit a single JSON document on stdout instead of human-readable text. The schema is:
+
+```json
+{
+  "summary": {"total": 1, "succeeded": 0, "failed": 1, "high_risk": 1, "medium_risk": 0, "low_risk": 0, "common_error_types": {"test manipulation / verification bypass": 1}},
+  "results": [
+    {
+      "source_path": "examples/codex_failed_run_001.jsonl",
+      "task": "...",
+      "final_status": "failed",
+      "risk_level": "high",
+      "max_suspicious_score": 0.45,
+      "suspicious_steps": 1,
+      "error_type": "test manipulation / verification bypass",
+      "confidence": "high",
+      "critical_step_id": 5,
+      "repair_suggestions": ["Instead of modifying test files, ..."]
+    }
+  ]
+}
+```
+
+Use this in CI pipelines that need to consume eval results programmatically.
+
 ## Input Format
 
 The supported input is Codex JSONL: one JSON event per line. The evaluator
@@ -191,6 +217,10 @@ Human-readable analysis report including:
 - Critical failure step
 - Table of all suspicious steps with scores and reasons
 - Replay suggestion with hints for alternative approaches
+- `confidence` (low/medium/high) reflecting how strongly the suspicious patterns implicate the critical step
+- `repair_suggestions` (list of remediation hints) derived from each matched pattern's repair hint
+
+The same `confidence` and `repair_suggestions` fields are also serialized into `diagnosis.json`.
 
 ## Limitations
 
@@ -212,7 +242,7 @@ The codebase is organized into clear modules:
 
 ## Technical Details
 
-- **Language**: Python 3.x
+- **Language**: Python 3.10+
 - **Dependencies**: Python standard library only
 - **Design**: Pure Python standard library
 - **Design**: Clear separation of concerns
@@ -222,9 +252,8 @@ The codebase is organized into clear modules:
 
 ## Extending the Analyzer
 
-To extend the analyzer:
-
-1. Add new action types in `classifier.py`
-2. Add new suspicious rules in `analyzer.py`
-3. Enhance output formats in `report.py`
-4. Modify tree rendering in `tree.py`
+- **New action types**: extend `classify_action_type()` in `classifier.py`.
+- **New suspicious patterns**: add a `Pattern` entry to `PATTERNS` in `patterns.py`, then add a rule block in `score_suspicious_steps()` (`analyzer.py`) that calls `_apply(step, "<pattern_name>", "<reason>")`.
+- **Custom step classifier (e.g. LLM-based)**: pass a `judge` callable to `normalize_steps(steps, judge=...)`. The callable receives a `Step` and returns a `NormalizedStep`. The default rule-based path is unchanged.
+- **New trajectory format adapter**: subclass `BaseAdapter` and register in `adapters/__init__.py`.
+- **Output format changes**: edit `report.py` for files; `tree.py` for rendering.

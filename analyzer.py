@@ -21,11 +21,7 @@ def _apply(step: NormalizedStep, pattern_name: str, reason: str) -> None:
     pattern = PATTERNS[pattern_name]
     step.suspicious_score += pattern.score_weight
     step.suspicious_reasons.append(reason)
-    names = getattr(step, "_matched_pattern_names", None)
-    if names is None:
-        names = []
-        step._matched_pattern_names = names
-    names.append(pattern_name)
+    step.matched_pattern_names.append(pattern_name)
 
 
 def score_suspicious_steps(steps: list[NormalizedStep], task: str, final_status: str) -> list[NormalizedStep]:
@@ -47,7 +43,7 @@ def score_suspicious_steps(steps: list[NormalizedStep], task: str, final_status:
     for i, step in enumerate(steps):
         step.suspicious_score = 0.0
         step.suspicious_reasons = []
-        step._matched_pattern_names = []
+        step.matched_pattern_names = []
 
         # Rule A: Edit test files
         if step.action_type == 'edit_file' and _is_test_path(step.action, step.diff or ""):
@@ -129,11 +125,10 @@ def _confidence_for(score: float) -> str:
 
 
 def _patterns_matched(step: NormalizedStep) -> list[Pattern]:
-    """Return the patterns that fired on this step, in order."""
-    names = getattr(step, "_matched_pattern_names", None) or []
+    """Return the patterns that fired on this step, in order, deduped."""
     seen: set[str] = set()
     result: list[Pattern] = []
-    for name in names:
+    for name in step.matched_pattern_names:
         if name in seen:
             continue
         seen.add(name)

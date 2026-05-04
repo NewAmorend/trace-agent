@@ -35,6 +35,7 @@ class NormalizedStep:
     state_change: bool
     suspicious_score: float = 0.0
     suspicious_reasons: list[str] = field(default_factory=list)
+    matched_pattern_names: list[str] = field(default_factory=list)
 
 
 @dataclass

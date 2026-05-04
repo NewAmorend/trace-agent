@@ -180,4 +180,5 @@ def _rule_classify(step: Step) -> NormalizedStep:
         state_change=state_change,
         suspicious_score=0.0,
         suspicious_reasons=[],
+        matched_pattern_names=[],
     )

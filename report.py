@@ -36,7 +36,8 @@ def write_outputs(
             'stage': step.stage,
             'state_change': step.state_change,
             'suspicious_score': step.suspicious_score,
-            'suspicious_reasons': step.suspicious_reasons
+            'suspicious_reasons': step.suspicious_reasons,
+            'matched_pattern_names': list(step.matched_pattern_names)
         }
         normalized_data.append(step_dict)
 

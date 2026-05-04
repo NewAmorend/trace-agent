@@ -61,7 +61,6 @@ def make_normalized_step(
         state_change=state_change,
         suspicious_score=suspicious_score,
         suspicious_reasons=suspicious_reasons or [],
+        matched_pattern_names=matched_pattern_names or [],
     )
-    if matched_pattern_names is not None:
-        step._matched_pattern_names = list(matched_pattern_names)
     return step
