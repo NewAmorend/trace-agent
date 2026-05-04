@@ -1,0 +1,12 @@
+# Agent Trajectory Eval — dev dependencies
+#
+# Runtime: stdlib only (no dependencies).
+# Tests:   unittest (stdlib).
+#
+# Optional tools used while developing:
+#   - datasets   (for scripts/fetch_lcb.py and scripts/fetch_swe.py)
+#
+# Install with:
+#   pip install -r requirements-dev.txt
+
+datasets>=2.0
