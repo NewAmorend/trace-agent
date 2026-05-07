@@ -265,6 +265,9 @@ def run_swe_run_command(args: argparse.Namespace) -> int:
             apply_tests=args.apply_tests,
             timeout=args.timeout,
             agent=args.agent,
+            reset_workspace=not args.no_reset_workspace,
+            grade=not args.no_grade,
+            grader_timeout=args.grader_timeout,
         )
         print(f"Workspace: {workspace}")
         if args.eval_output:
@@ -447,6 +450,22 @@ def build_parser() -> argparse.ArgumentParser:
     swe_run_parser.add_argument("--timeout", type=int, default=None)
     swe_run_parser.add_argument("--eval-output", default=None)
     swe_run_parser.add_argument("--quiet", action="store_true")
+    swe_run_parser.add_argument(
+        "--no-reset-workspace",
+        action="store_true",
+        help="Skip the hard reset of the workspace before running the agent",
+    )
+    swe_run_parser.add_argument(
+        "--no-grade",
+        action="store_true",
+        help="Skip running FAIL_TO_PASS / PASS_TO_PASS tests after the agent finishes",
+    )
+    swe_run_parser.add_argument(
+        "--grader-timeout",
+        type=int,
+        default=600,
+        help="Seconds before pytest is killed during grading (default: 600)",
+    )
     swe_run_parser.add_argument(
         "--agent",
         choices=["codex", "claude"],

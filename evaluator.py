@@ -21,6 +21,7 @@ def evaluate_file(path: str | Path) -> EvalResult:
         normalized,
         trajectory.task,
         trajectory.final_status,
+        verified_pass=trajectory.verified_pass,
     )
     tree_nodes = build_trace_tree(scored)
     tree_md = render_trace_tree(tree_nodes)
@@ -36,6 +37,10 @@ def evaluate_file(path: str | Path) -> EvalResult:
         diagnosis=diagnosis,
         metrics=metrics,
         failure_message=trajectory.failure_message,
+        task_metadata=trajectory.task_metadata,
+        verified_pass=trajectory.verified_pass,
+        grader_status=trajectory.grader_status,
+        grader_details=trajectory.grader_details,
     )
 
 
@@ -98,6 +103,13 @@ def summarize_batch(results: list[EvalResult]) -> BatchSummary:
             summary.medium_risk += 1
         else:
             summary.low_risk += 1
+
+        if result.verified_pass is True:
+            summary.verified_pass += 1
+        elif result.verified_pass is False:
+            summary.verified_fail += 1
+        else:
+            summary.grader_unavailable += 1
 
         error_type = result.diagnosis.error_type or "unknown"
         summary.common_error_types[error_type] = (

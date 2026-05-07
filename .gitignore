@@ -6,3 +6,12 @@ out/
 build/
 dist/
 *.egg-info/
+
+# SWE-bench / LCB artifacts (large; reproducible per-run)
+data/swe/tasks/
+data/swe/trajectories/
+data/swe/worktrees/
+data/swe/runs_5/
+data/lcb/problems/
+data/lcb/trajectories/
+

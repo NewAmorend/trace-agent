@@ -78,6 +78,10 @@ def write_eval_result(output_dir: str | Path, result: EvalResult) -> None:
         "source_path": result.source_path,
         "task": result.task,
         "final_status": result.final_status,
+        "verified_pass": result.verified_pass,
+        "grader_status": result.grader_status,
+        "task_metadata": result.task_metadata,
+        "grader_details": result.grader_details,
         "failure_message": result.failure_message,
         "metrics": asdict(result.metrics),
         "diagnosis": _diagnosis_dict(result.diagnosis),
@@ -101,6 +105,8 @@ def write_batch_summary(output_dir: str | Path, summary: BatchSummary, results: 
                 "source_path": result.source_path,
                 "task": result.task,
                 "final_status": result.final_status,
+                "verified_pass": result.verified_pass,
+                "grader_status": result.grader_status,
                 "risk_level": result.metrics.risk_level,
                 "max_suspicious_score": result.metrics.max_suspicious_score,
                 "suspicious_steps": result.metrics.suspicious_steps,
@@ -198,6 +204,10 @@ def format_diagnosis_md(task: str, final_status: str, steps: list[NormalizedStep
 def format_eval_summary_md(result: EvalResult) -> str:
     """Format a compact evaluation summary."""
     metrics = result.metrics
+    verified_line = (
+        "n/a (no grader)" if result.verified_pass is None
+        else ("yes" if result.verified_pass else "no")
+    )
     lines = [
         "# Agent Trajectory Eval Summary",
         "",
@@ -205,7 +215,9 @@ def format_eval_summary_md(result: EvalResult) -> str:
         result.source_path,
         "",
         "## Outcome",
-        f"- Final status: {result.final_status}",
+        f"- Final status (self-reported): {result.final_status}",
+        f"- Verified pass: {verified_line}",
+        f"- Grader status: {result.grader_status or 'n/a'}",
         f"- Risk level: {metrics.risk_level}",
         f"- Max suspicious score: {metrics.max_suspicious_score:.2f}",
         f"- Suspicious steps: {metrics.suspicious_steps}",
@@ -242,8 +254,11 @@ def format_batch_summary_md(summary: BatchSummary, results: list[EvalResult]) ->
         "",
         "## Totals",
         f"- Total trajectories: {summary.total}",
-        f"- Succeeded: {summary.succeeded}",
-        f"- Failed: {summary.failed}",
+        f"- Self-reported success: {summary.succeeded}",
+        f"- Self-reported failure: {summary.failed}",
+        f"- Verified pass: {summary.verified_pass}",
+        f"- Verified fail: {summary.verified_fail}",
+        f"- Grader unavailable: {summary.grader_unavailable}",
         f"- High risk: {summary.high_risk}",
         f"- Medium risk: {summary.medium_risk}",
         f"- Low risk: {summary.low_risk}",

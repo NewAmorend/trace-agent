@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from models import Step, Trajectory
+from models import Step, Trajectory  # noqa: F401  (Trajectory used in type hints)
 from adapters import get_adapter
 
 
@@ -46,7 +46,60 @@ def load_trajectory(path: str) -> Trajectory:
     if not trajectory.steps:
         raise ValueError(f"No valid steps found in {path}")
 
+    sidecar = _load_sidecar(input_path)
+    if sidecar:
+        _enrich_with_sidecar(trajectory, sidecar)
+
     return trajectory
+
+
+def _load_sidecar(trajectory_path: Path) -> dict | None:
+    """Look for `<trajectory>.sidecar.json` next to the trajectory file."""
+    candidates = [
+        trajectory_path.with_suffix(trajectory_path.suffix + ".sidecar.json"),
+        trajectory_path.with_name(trajectory_path.stem + ".sidecar.json"),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            try:
+                with open(candidate, "r") as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, OSError):
+                return None
+    return None
+
+
+def _enrich_with_sidecar(trajectory: 'Trajectory', sidecar: dict) -> None:
+    """Stamp task identity and verified-grade fields onto the trajectory."""
+    metadata = {
+        key: sidecar.get(key)
+        for key in (
+            "instance_id", "repo", "base_commit",
+            "problem_statement", "FAIL_TO_PASS", "PASS_TO_PASS",
+        )
+        if sidecar.get(key) is not None
+    }
+    if metadata:
+        trajectory.task_metadata = metadata
+        instance_id = metadata.get("instance_id")
+        repo = metadata.get("repo")
+        if instance_id:
+            label = instance_id if not repo else f"{repo}#{instance_id}"
+            trajectory.task = label
+
+    if "verified_pass" in sidecar:
+        trajectory.verified_pass = sidecar.get("verified_pass")
+    trajectory.grader_status = sidecar.get("grader_status")
+    grader_details = {
+        key: sidecar.get(key)
+        for key in (
+            "fail_to_pass_results", "pass_to_pass_results",
+            "agent_diff", "grader_message",
+        )
+        if sidecar.get(key) is not None
+    }
+    if grader_details:
+        trajectory.grader_details = grader_details
 
 
 def load_trajectory_legacy(path: str) -> tuple[str, str, list[Step]]:

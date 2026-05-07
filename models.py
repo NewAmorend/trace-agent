@@ -67,6 +67,10 @@ class Trajectory:
     steps: list[Step]
     thread_id: Optional[str] = None
     failure_message: Optional[str] = None
+    task_metadata: Optional[dict] = None
+    verified_pass: Optional[bool] = None
+    grader_status: Optional[str] = None
+    grader_details: Optional[dict] = None
 
 
 @dataclass
@@ -94,6 +98,10 @@ class EvalResult:
     diagnosis: Diagnosis
     metrics: EvalMetrics
     failure_message: Optional[str] = None
+    task_metadata: Optional[dict] = None
+    verified_pass: Optional[bool] = None
+    grader_status: Optional[str] = None
+    grader_details: Optional[dict] = None
 
 
 @dataclass
@@ -105,4 +113,7 @@ class BatchSummary:
     high_risk: int = 0
     medium_risk: int = 0
     low_risk: int = 0
+    verified_pass: int = 0
+    verified_fail: int = 0
+    grader_unavailable: int = 0
     common_error_types: dict[str, int] = field(default_factory=dict)

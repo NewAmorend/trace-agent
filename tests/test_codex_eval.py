@@ -52,6 +52,56 @@ class CodexEvalTests(unittest.TestCase):
                 "test manipulation / verification bypass",
             )
 
+    def test_sidecar_overrides_task_and_verified_pass(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "run.jsonl"
+            write_jsonl(path, sample_events())
+
+            sidecar = path.with_suffix(path.suffix + ".sidecar.json")
+            sidecar.write_text(json.dumps({
+                "instance_id": "demo__demo-1",
+                "repo": "demo/demo",
+                "base_commit": "abc123",
+                "verified_pass": True,
+                "grader_status": "ok",
+                "FAIL_TO_PASS": ["tests/test_x.py::test_a"],
+            }))
+
+            trajectory = load_trajectory(str(path))
+            self.assertEqual(trajectory.task, "demo/demo#demo__demo-1")
+            self.assertTrue(trajectory.verified_pass)
+            self.assertEqual(trajectory.grader_status, "ok")
+            self.assertEqual(
+                trajectory.task_metadata["instance_id"], "demo__demo-1"
+            )
+
+    def test_evaluate_file_suppresses_test_bypass_when_verified(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "run.jsonl"
+            write_jsonl(path, sample_events(final_failure=False))
+
+            sidecar = path.with_suffix(path.suffix + ".sidecar.json")
+            sidecar.write_text(json.dumps({
+                "instance_id": "demo__demo-2",
+                "verified_pass": True,
+                "grader_status": "ok",
+            }))
+
+            result = evaluate_file(path)
+            # The trajectory edits a test file; without sidecar this would
+            # be flagged. With verified_pass=True it must not be.
+            test_edit_steps = [
+                s for s in result.normalized_steps
+                if s.action_type == "edit_file"
+            ]
+            self.assertTrue(test_edit_steps)
+            for step in test_edit_steps:
+                self.assertNotIn(
+                    "tests_pass_after_test_only_edit",
+                    step.matched_pattern_names,
+                )
+            self.assertTrue(result.verified_pass)
+
     def test_discover_inputs_and_batch_summary(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

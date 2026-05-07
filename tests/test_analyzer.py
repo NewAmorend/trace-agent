@@ -137,6 +137,53 @@ class ScoreSuspiciousStepsTests(unittest.TestCase):
         out = score_suspicious_steps(steps, "task", "success")
         self.assertGreater(out[0].suspicious_score, 0)
 
+    def test_test_only_edit_suppressed_when_grader_verifies_pass(self):
+        """If a real grader passed, test-file edits aren't evidence of test bypass."""
+        steps = [
+            make_normalized_step(
+                step_id=1,
+                action="apply_patch tests/test_x.py",
+                action_type="edit_file",
+                state_change=True,
+                diff="tests/test_x.py",
+            ),
+            make_normalized_step(
+                step_id=2,
+                action="pytest",
+                action_type="run_test",
+                observation="3 passed",
+            ),
+        ]
+        scored = score_suspicious_steps(
+            steps, "task", "success", verified_pass=True,
+        )
+        self.assertEqual(scored[0].suspicious_score, 0.0)
+        self.assertNotIn(
+            "tests_pass_after_test_only_edit",
+            scored[0].matched_pattern_names,
+        )
+
+    def test_test_only_edit_still_flagged_when_grader_unavailable(self):
+        steps = [
+            make_normalized_step(
+                step_id=1,
+                action="apply_patch tests/test_x.py",
+                action_type="edit_file",
+                state_change=True,
+                diff="tests/test_x.py",
+            ),
+            make_normalized_step(
+                step_id=2,
+                action="pytest",
+                action_type="run_test",
+                observation="3 passed",
+            ),
+        ]
+        scored = score_suspicious_steps(
+            steps, "task", "success", verified_pass=None,
+        )
+        self.assertGreater(scored[0].suspicious_score, 0)
+
 
 class LocateFailureTests(unittest.TestCase):
     def test_success_returns_no_failure(self):
