@@ -1,5 +1,8 @@
 # Agent Trajectory Eval
 
+> **Status:** v0.1.0 in progress — see [`docs/roadmap.md`](docs/roadmap.md)
+> for the path to a calibrated analyzer with real `verified_pass` numbers.
+
 A Codex-first evaluation toolkit for coding agent trajectories. It reads Codex
 CLI JSONL session or `codex exec --json` streams and produces:
 
