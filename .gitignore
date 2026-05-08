@@ -12,6 +12,8 @@ data/swe/tasks/
 data/swe/trajectories/
 data/swe/worktrees/
 data/swe/runs_5/
+data/swe/runs_v1/*
+!data/swe/runs_v1/instances.txt
 data/lcb/problems/
 data/lcb/trajectories/
 

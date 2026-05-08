@@ -1,0 +1,45 @@
+# 30 SWE-bench Lite instances across 5 small-to-medium repos.
+# Picked to give enough coverage for analyzer calibration without
+# pulling huge clones (matplotlib, scikit-learn, astropy excluded).
+
+# pallets/flask (3)
+pallets__flask-4045
+pallets__flask-4992
+pallets__flask-5063
+
+# psf/requests (5)
+psf__requests-1963
+psf__requests-2148
+psf__requests-2317
+psf__requests-2674
+psf__requests-3362
+
+# mwaskom/seaborn (4)
+mwaskom__seaborn-2848
+mwaskom__seaborn-3010
+mwaskom__seaborn-3190
+mwaskom__seaborn-3407
+
+# pylint-dev/pylint (6)
+pylint-dev__pylint-5859
+pylint-dev__pylint-6506
+pylint-dev__pylint-7080
+pylint-dev__pylint-7114
+pylint-dev__pylint-7228
+pylint-dev__pylint-7993
+
+# pytest-dev/pytest (8)
+pytest-dev__pytest-5103
+pytest-dev__pytest-5221
+pytest-dev__pytest-5413
+pytest-dev__pytest-5495
+pytest-dev__pytest-5692
+pytest-dev__pytest-6116
+pytest-dev__pytest-7168
+pytest-dev__pytest-7373
+
+# pydata/xarray (4)
+pydata__xarray-3364
+pydata__xarray-4094
+pydata__xarray-4248
+pydata__xarray-4493

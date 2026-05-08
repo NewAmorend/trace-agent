@@ -250,6 +250,17 @@ def run_swe_prepare_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_swe_batch_command(forwarded_args: list[str]) -> int:
+    """Hand the rest of argv to scripts/run_batch.py's own argparse."""
+    import sys as _sys
+    from pathlib import Path as _Path
+    scripts_dir = _Path(__file__).resolve().parent / "scripts"
+    if str(scripts_dir) not in _sys.path:
+        _sys.path.insert(0, str(scripts_dir))
+    import run_batch  # type: ignore
+    return run_batch.main(forwarded_args)
+
+
 def run_swe_run_command(args: argparse.Namespace) -> int:
     try:
         result, workspace = run_task(
@@ -485,11 +496,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     swe_eval_parser.set_defaults(func=run_eval_command)
 
+    # NOTE: `swe batch` is intercepted before argparse runs (see main()),
+    # so its own argparse owns all flags and `--help` works correctly.
+    # We still register a stub here so the subcommand shows in help listings.
+    swe_subparsers.add_parser(
+        "batch",
+        help="Run a resumable batch of SWE-bench Lite tasks (use `swe batch --help` for flags)",
+        add_help=False,
+    )
+
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args_list = list(sys.argv[1:] if argv is None else argv)
+
+    # Intercept `swe batch ...` before argparse so its own parser owns all flags.
+    if args_list[:2] == ["swe", "batch"]:
+        return run_swe_batch_command(args_list[2:])
 
     # Backward compatibility for `trace-eval --input ... --output ...`.
     if args_list and args_list[0].startswith("-") and args_list[0] not in ("-h", "--help"):
