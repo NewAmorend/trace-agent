@@ -14,7 +14,11 @@ data/swe/worktrees/
 data/swe/runs_5/
 data/swe/runs_v1/*
 !data/swe/runs_v1/instances.txt
+data/swe/runs_v1_done/
 data/swe/venvs/
+
+# Runtime logs
+logs/
 data/lcb/problems/
 data/lcb/trajectories/
 
