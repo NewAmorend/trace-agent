@@ -170,6 +170,14 @@ class ClaudeRunnerCommandTests(unittest.TestCase):
         cmd = build_claude_exec_command("Fix the bug")
         self.assertNotIn("--model", cmd)
 
+    def test_build_claude_exec_command_includes_accept_edits_by_default(self):
+        """Without --permission-mode acceptEdits, claude blocks Edits in non-
+        interactive mode and produces zero-diff trajectories."""
+        cmd = build_claude_exec_command("Fix the bug")
+        self.assertIn("--permission-mode", cmd)
+        idx = cmd.index("--permission-mode")
+        self.assertEqual(cmd[idx + 1], "acceptEdits")
+
 
 class ClaudeCLIFlagTests(unittest.TestCase):
     def test_run_defaults_to_codex(self):

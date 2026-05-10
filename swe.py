@@ -20,6 +20,7 @@ DEFAULT_SPLIT = "test"
 DEFAULT_TASKS_DIR = Path("data/swe/tasks")
 DEFAULT_WORKTREES_DIR = Path("data/swe/worktrees")
 DEFAULT_TRAJECTORIES_DIR = Path("data/swe/trajectories")
+DEFAULT_VENVS_DIR = Path("data/swe/venvs")
 
 GRADER_TIMEOUT_DEFAULT = 600
 
@@ -211,16 +212,26 @@ def grade_task(
     *,
     timeout: int = GRADER_TIMEOUT_DEFAULT,
     apply_test_patch_first: bool = True,
+    install: bool = False,
+    install_timeout: int = 300,
 ) -> dict:
     """Run FAIL_TO_PASS and PASS_TO_PASS tests, return a verified-grade dict.
 
     The returned dict has keys:
       - verified_pass:          bool | None
-      - grader_status:          'ok' | 'collection_error' | 'timeout' | 'no_tests' | 'install_error'
+      - grader_status:          'ok' | 'collection_error' | 'timeout' | 'no_tests'
+                                | 'install_failed' | 'install_timeout'
       - grader_message:         str
       - fail_to_pass_results:   {passed:[], failed:[], errors:[], skipped:[]}
       - pass_to_pass_results:   same shape
       - agent_diff:             str   (git diff vs base_commit)
+      - install_status:         'skipped' | 'installed' | 'install_failed'
+                                | 'timeout' | 'no_pip'
+
+    When ``install=True``, runs ``pip install -e .`` in the workspace
+    before pytest. If install fails, short-circuits with grader_status
+    set accordingly so the caller can distinguish dep issues from real
+    test failures.
     """
     workspace_path = Path(workspace)
     base_commit = task.get("base_commit", "")
@@ -245,6 +256,29 @@ def grade_task(
     else:
         test_patch_status = "skipped"
 
+    install_status = "skipped"
+    install_message = ""
+    runner_python: str | None = None
+    if install:
+        instance_id = task.get("instance_id")
+        install_result = _install_repo(
+            workspace_path, timeout=install_timeout, instance_id=instance_id,
+        )
+        install_status = install_result["status"]
+        install_message = install_result["message"]
+        runner_python = install_result.get("python")
+        if not install_result["ok"]:
+            return {
+                "verified_pass": None,
+                "grader_status": install_status if install_status != "installed" else "install_failed",
+                "grader_message": install_message[:1500],
+                "fail_to_pass_results": None,
+                "pass_to_pass_results": None,
+                "agent_diff": agent_diff,
+                "test_patch_application": test_patch_status,
+                "install_status": install_status,
+            }
+
     result: dict = {
         "verified_pass": None,
         "grader_status": "skipped",
@@ -253,6 +287,7 @@ def grade_task(
         "pass_to_pass_results": None,
         "agent_diff": agent_diff,
         "test_patch_application": test_patch_status,
+        "install_status": install_status,
     }
 
     if not fail_to_pass and not pass_to_pass:
@@ -260,8 +295,8 @@ def grade_task(
         result["grader_message"] = "No FAIL_TO_PASS / PASS_TO_PASS test ids in task."
         return result
 
-    f2p = _run_pytest(workspace_path, fail_to_pass, timeout=timeout) if fail_to_pass else _empty_pytest_result()
-    p2p = _run_pytest(workspace_path, pass_to_pass, timeout=timeout) if pass_to_pass else _empty_pytest_result()
+    f2p = _run_pytest(workspace_path, fail_to_pass, timeout=timeout, python=runner_python) if fail_to_pass else _empty_pytest_result()
+    p2p = _run_pytest(workspace_path, pass_to_pass, timeout=timeout, python=runner_python) if pass_to_pass else _empty_pytest_result()
     result["fail_to_pass_results"] = f2p
     result["pass_to_pass_results"] = p2p
 
@@ -282,6 +317,123 @@ def grade_task(
         result["grader_status"] = next(iter(statuses), "skipped")
 
     return result
+
+
+def _ensure_task_venv(
+    instance_id: str,
+    *,
+    base: str | Path = DEFAULT_VENVS_DIR,
+) -> Path:
+    """Create (or reuse) a per-instance venv for grading.
+
+    Per-task venv isolation prevents cross-package conflicts that
+    routinely break SWE-bench Lite tasks (e.g., flask 2.x vs. a newer
+    werkzeug already in the parent env). Uses ``uv venv`` when available
+    (fast), falls back to the stdlib ``venv`` module.
+    """
+    venv_dir = Path(base) / instance_id
+    venv_python = venv_dir / "bin" / "python"
+    if venv_python.exists():
+        return venv_dir
+
+    venv_dir.parent.mkdir(parents=True, exist_ok=True)
+    uv = shutil.which("uv")
+    if uv:
+        subprocess.run([uv, "venv", str(venv_dir)], check=True, capture_output=True, text=True)
+    else:
+        subprocess.run(
+            [sys.executable, "-m", "venv", str(venv_dir)],
+            check=True, capture_output=True, text=True,
+        )
+    return venv_dir
+
+
+def _venv_python(venv_dir: Path) -> str:
+    """Absolute path to the venv's python interpreter.
+
+    Uses ``Path.absolute()`` (not ``resolve()``) so the symlink stays
+    intact — `uv pip` reads ``pyvenv.cfg`` next to this exact path to
+    find the venv. ``resolve()`` would dereference past the symlink to
+    the externally-managed base interpreter and fail.
+    """
+    return str((venv_dir / "bin" / "python").absolute())
+
+
+def _install_repo(
+    workspace: Path,
+    *,
+    timeout: int,
+    instance_id: str | None = None,
+    venvs_dir: str | Path = DEFAULT_VENVS_DIR,
+) -> dict:
+    """Best-effort ``pip install -e .`` plus ``pytest`` into a clean env.
+
+    When ``instance_id`` is provided, installs into a per-instance venv
+    under ``venvs_dir`` so SWE-bench tasks with conflicting transitive
+    deps don't poison each other. Otherwise installs into the current
+    Python env (with ``ensurepip`` bootstrap).
+
+    Returns a dict with ``ok``, ``status``, ``message``, and (when a
+    venv is used) ``python`` — the path the caller should use to invoke
+    pytest.
+    """
+    uv = shutil.which("uv")
+    if instance_id is not None:
+        venv_dir = _ensure_task_venv(instance_id, base=venvs_dir)
+        py = _venv_python(venv_dir)
+        # uv-created venvs ship without pip; use `uv pip install --python <py>`
+        if uv:
+            pip_base = [uv, "pip", "install", "--python", py, "--quiet"]
+        else:
+            # stdlib venv has pip; use it directly.
+            pip_base = [py, "-m", "pip", "install", "--quiet", "--disable-pip-version-check"]
+    else:
+        bootstrap = subprocess.run(
+            [sys.executable, "-m", "ensurepip", "--default-pip"],
+            capture_output=True, text=True,
+        )
+        if bootstrap.returncode != 0 and "No module named" in bootstrap.stderr:
+            return {
+                "ok": False, "status": "no_pip",
+                "message": f"ensurepip failed: {bootstrap.stderr.strip()[:500]}",
+                "python": sys.executable,
+            }
+        py = sys.executable
+        pip_base = [py, "-m", "pip", "install", "--quiet", "--disable-pip-version-check"]
+
+    # 1) install pytest into the (possibly new) venv. Idempotent.
+    try:
+        proc = subprocess.run(
+            pip_base + ["pytest"],
+            cwd=str(workspace), capture_output=True, text=True, timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return {"ok": False, "status": "timeout",
+                "message": f"pip install pytest timed out; tail: {(exc.stdout or '')[-500:]}",
+                "python": py}
+    except FileNotFoundError:
+        return {"ok": False, "status": "no_pip",
+                "message": "python -m pip not available", "python": py}
+    if proc.returncode != 0:
+        tail = (proc.stdout[-1500:] + "\n" + proc.stderr[-1500:]).strip()
+        return {"ok": False, "status": "install_failed",
+                "message": ("pytest install failed:\n" + tail)[:1500], "python": py}
+
+    # 2) install the repo itself.
+    try:
+        proc = subprocess.run(
+            pip_base + ["-e", "."],
+            cwd=str(workspace), capture_output=True, text=True, timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return {"ok": False, "status": "timeout",
+                "message": f"pip install -e . timed out; tail: {(exc.stdout or '')[-500:]}",
+                "python": py}
+
+    if proc.returncode != 0:
+        tail = (proc.stdout[-1500:] + "\n" + proc.stderr[-1500:]).strip()
+        return {"ok": False, "status": "install_failed", "message": tail[:1500], "python": py}
+    return {"ok": True, "status": "installed", "message": "", "python": py}
 
 
 def _empty_pytest_result() -> dict:
@@ -317,8 +469,18 @@ def _ensure_test_patch_applied(workspace: Path, patch_text: str) -> str:
     return f"apply_failed: {apply_proc.stderr.strip()[:200]}"
 
 
-def _run_pytest(workspace: Path, test_ids: list[str], *, timeout: int) -> dict:
-    """Run a list of pytest node ids and return a structured result."""
+def _run_pytest(
+    workspace: Path,
+    test_ids: list[str],
+    *,
+    timeout: int,
+    python: str | None = None,
+) -> dict:
+    """Run a list of pytest node ids and return a structured result.
+
+    Uses ``python`` (the venv interpreter from _install_repo) when given,
+    otherwise falls back to ``sys.executable``.
+    """
     if not test_ids:
         return _empty_pytest_result()
 
@@ -327,7 +489,7 @@ def _run_pytest(workspace: Path, test_ids: list[str], *, timeout: int) -> dict:
         junit.unlink()
 
     cmd = [
-        sys.executable, "-m", "pytest",
+        python or sys.executable, "-m", "pytest",
         "--no-header", "-q", "--tb=short",
         f"--junitxml={junit}",
     ] + test_ids
@@ -398,6 +560,58 @@ def _run_pytest(workspace: Path, test_ids: list[str], *, timeout: int) -> dict:
         "returncode": proc.returncode,
         "message": "",
     }
+
+
+def regrade_task(
+    task: dict,
+    workspace: str | Path,
+    *,
+    agent_diff: str,
+    install: bool = True,
+    install_timeout: int = 300,
+    grader_timeout: int = GRADER_TIMEOUT_DEFAULT,
+) -> dict:
+    """Reset workspace to base_commit, replay agent_diff, then grade.
+
+    The point of this helper: re-grade existing trajectories after the
+    grader gets new capabilities (e.g., pip install) without re-running
+    the agent. ``agent_diff`` comes from the trajectory's sidecar
+    (captured by an earlier ``grade_task`` call).
+    """
+    workspace_path = Path(workspace)
+    base_commit = task.get("base_commit", "")
+    if not base_commit:
+        return {"verified_pass": None, "grader_status": "no_base_commit",
+                "grader_message": "task is missing base_commit", "agent_diff": agent_diff}
+
+    if not _hard_reset_worktree(workspace_path, base_commit):
+        return {"verified_pass": None, "grader_status": "reset_failed",
+                "grader_message": f"git reset/clean failed in {workspace_path}",
+                "agent_diff": agent_diff}
+
+    if agent_diff and agent_diff.strip():
+        replay_path = workspace_path / ".trace_agent_replay.patch"
+        replay_path.write_text(agent_diff)
+        apply_proc = subprocess.run(
+            ["git", "-C", str(workspace_path), "apply", str(replay_path)],
+            capture_output=True, text=True,
+        )
+        if apply_proc.returncode != 0:
+            return {
+                "verified_pass": None,
+                "grader_status": "diff_apply_failed",
+                "grader_message": apply_proc.stderr.strip()[:1500],
+                "agent_diff": agent_diff,
+            }
+
+    return grade_task(
+        task,
+        workspace_path,
+        timeout=grader_timeout,
+        apply_test_patch_first=True,
+        install=install,
+        install_timeout=install_timeout,
+    )
 
 
 def write_sidecar(

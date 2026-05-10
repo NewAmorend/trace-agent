@@ -119,9 +119,21 @@ def build_claude_exec_command(
     prompt: str,
     *,
     model: str | None = None,
+    permission_mode: str = "acceptEdits",
 ) -> list[str]:
-    """Build the claude command used by the Claude runner."""
-    command = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose"]
+    """Build the claude command used by the Claude runner.
+
+    ``permission_mode`` defaults to ``acceptEdits`` so the agent can
+    actually edit files in non-interactive mode. Without this, claude
+    asks for confirmation on every Edit and silently downgrades to
+    'describe the fix in chat' — producing trajectories with zero diff.
+    """
+    command = [
+        "claude", "-p", prompt,
+        "--output-format", "stream-json",
+        "--verbose",
+        "--permission-mode", permission_mode,
+    ]
     if model:
         command.extend(["--model", model])
     return command
