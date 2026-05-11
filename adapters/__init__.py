@@ -1,6 +1,6 @@
 """Adapter registry for trajectory format detection and conversion."""
 
-from adapters.base import BaseAdapter
+from adapters.base import BaseAdapter, infer_task_from_source
 from adapters.claude_adapter import ClaudeAdapter
 from adapters.codex_adapter import CodexAdapter
 

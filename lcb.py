@@ -39,7 +39,7 @@ def fetch_problems(
     counts = {difficulty: 0 for difficulty in limits}
     manifest = []
 
-    with urlopen(url) as response:
+    with urlopen(url, timeout=30) as response:
         for raw_line in response:
             row = json.loads(raw_line.decode("utf-8"))
             difficulty = row.get("difficulty", "unknown")
@@ -113,7 +113,7 @@ def run_problem(
     """Run an agent against one problem file and save the JSONL trajectory."""
 
     problem_path = Path(problems_dir) / problem_file
-    with problem_path.open("r") as f:
+    with problem_path.open("r", encoding='utf-8') as f:
         problem = json.load(f)
 
     qid = problem["question_id"]
@@ -159,7 +159,7 @@ def run_lcb(
     if not manifest_path.exists():
         raise FileNotFoundError(f"{manifest_path} not found. Run `trace-agent lcb fetch` first.")
 
-    with manifest_path.open("r") as f:
+    with manifest_path.open("r", encoding='utf-8') as f:
         manifest = json.load(f)
 
     if difficulty != "all":

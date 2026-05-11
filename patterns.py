@@ -8,6 +8,11 @@ to tune and to extend (e.g. by loading from an external config later).
 from dataclasses import dataclass
 
 
+RISK_THRESHOLD_HIGH = 0.45
+RISK_THRESHOLD_MEDIUM = 0.30
+RISK_THRESHOLD_SUSPICIOUS_STEPS_HIGH = 3
+
+
 @dataclass(frozen=True)
 class Pattern:
     name: str

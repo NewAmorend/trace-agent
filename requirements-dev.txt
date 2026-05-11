@@ -3,10 +3,12 @@
 # Runtime: stdlib only (no dependencies).
 # Tests:   unittest (stdlib).
 #
-# This file is currently empty by design — fetchers (lcb.py, swe.py,
-# scripts/fetch_lcb.py, scripts/fetch_swe.py) talk to Hugging Face over
-# direct HTTP, so even the optional fetcher path is stdlib-only.
+# Fetchers (lcb.py, swe.py) talk to Hugging Face over direct HTTP,
+# so even the optional fetcher path is stdlib-only.
 #
-# Add lines below if a future dev tool (e.g. mypy, ruff) becomes part of
-# the workflow. Install with:
+# Install with:
 #   pip install -r requirements-dev.txt
+
+ruff>=0.4
+mypy>=1.10
+coverage>=7.0

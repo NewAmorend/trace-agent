@@ -1,7 +1,7 @@
 """Adapter for Claude Code CLI --output-format stream-json."""
 
 import json
-from adapters.base import BaseAdapter
+from adapters.base import BaseAdapter, infer_task_from_source
 from models import Step, Trajectory
 
 
@@ -111,6 +111,15 @@ class ClaudeAdapter(BaseAdapter):
                     steps[tool_use_step_idx[tool_use_id]].observation = obs
                 continue
 
+            if event_type == 'user':
+                for block in line.get('message', {}).get('content', []):
+                    if block.get('type') == 'tool_result':
+                        tool_use_id = block.get('tool_use_id', '')
+                        obs = _extract_tool_result_text(block.get('content', []))
+                        if tool_use_id in tool_use_step_idx:
+                            steps[tool_use_step_idx[tool_use_id]].observation = obs
+                continue
+
             if event_type == 'result':
                 if line.get('subtype') != 'success':
                     has_failure = True
@@ -119,7 +128,7 @@ class ClaudeAdapter(BaseAdapter):
 
         return Trajectory(
             source_path=source_path,
-            task=_infer_task_from_source(source_path),
+            task=infer_task_from_source(source_path, include_parent=True),
             final_status='failed' if has_failure else 'success',
             steps=steps,
             thread_id=thread_id,
@@ -127,7 +136,9 @@ class ClaudeAdapter(BaseAdapter):
         )
 
 
-def _extract_tool_result_text(content: list) -> str | None:
+def _extract_tool_result_text(content: list | str) -> str | None:
+    if isinstance(content, str):
+        return content or None
     parts = []
     for item in content:
         if isinstance(item, dict) and item.get('type') == 'text':
@@ -135,16 +146,3 @@ def _extract_tool_result_text(content: list) -> str | None:
         elif isinstance(item, str):
             parts.append(item)
     return '\n'.join(parts) if parts else None
-
-
-def _infer_task_from_source(source_path: str) -> str:
-    if not source_path:
-        return 'Unknown task'
-    parts = source_path.replace('\\', '/').split('/')
-    stem = parts[-1].rsplit('.', 1)[0]
-    if len(parts) >= 2:
-        parent = parts[-2]
-        name = f"{parent} {stem}"
-    else:
-        name = stem
-    return name.replace('_', ' ').replace('-', ' ')

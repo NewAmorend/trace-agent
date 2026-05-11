@@ -41,22 +41,22 @@ def write_outputs(
         }
         normalized_data.append(step_dict)
 
-    with open(os.path.join(output_dir, 'normalized_steps.json'), 'w') as f:
+    with open(os.path.join(output_dir, 'normalized_steps.json'), 'w', encoding='utf-8') as f:
         json.dump(normalized_data, f, indent=2)
 
     # Write trace_tree.md
-    with open(os.path.join(output_dir, 'trace_tree.md'), 'w') as f:
+    with open(os.path.join(output_dir, 'trace_tree.md'), 'w', encoding='utf-8') as f:
         f.write(tree_md)
 
     # Write diagnosis.json
     diagnosis_data = _diagnosis_dict(diagnosis)
 
-    with open(os.path.join(output_dir, 'diagnosis.json'), 'w') as f:
+    with open(os.path.join(output_dir, 'diagnosis.json'), 'w', encoding='utf-8') as f:
         json.dump(diagnosis_data, f, indent=2)
 
     # Write diagnosis.md
     diagnosis_md = format_diagnosis_md(task, final_status, steps, diagnosis)
-    with open(os.path.join(output_dir, 'diagnosis.md'), 'w') as f:
+    with open(os.path.join(output_dir, 'diagnosis.md'), 'w', encoding='utf-8') as f:
         f.write(diagnosis_md)
 
 
@@ -82,10 +82,10 @@ def write_eval_result(output_dir: str | Path, result: EvalResult) -> None:
         "metrics": asdict(result.metrics),
         "diagnosis": _diagnosis_dict(result.diagnosis),
     }
-    with open(output_path / "eval_result.json", "w") as f:
+    with open(output_path / "eval_result.json", "w", encoding='utf-8') as f:
         json.dump(eval_data, f, indent=2)
 
-    with open(output_path / "eval_summary.md", "w") as f:
+    with open(output_path / "eval_summary.md", "w", encoding='utf-8') as f:
         f.write(format_eval_summary_md(result))
 
 
@@ -113,10 +113,10 @@ def write_batch_summary(output_dir: str | Path, summary: BatchSummary, results: 
             for result in results
         ],
     }
-    with open(output_path / "batch_summary.json", "w") as f:
+    with open(output_path / "batch_summary.json", "w", encoding='utf-8') as f:
         json.dump(data, f, indent=2)
 
-    with open(output_path / "batch_summary.md", "w") as f:
+    with open(output_path / "batch_summary.md", "w", encoding='utf-8') as f:
         f.write(format_batch_summary_md(summary, results))
 
 

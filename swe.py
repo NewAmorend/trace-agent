@@ -42,7 +42,7 @@ def fetch_tasks(
     url = f"https://datasets-server.huggingface.co/rows?{query}"
     print(f"Loading SWE-bench Lite tasks from {url}...")
 
-    with urlopen(url) as response:
+    with urlopen(url, timeout=30) as response:
         payload = json.load(response)
 
     tasks = []
@@ -74,7 +74,7 @@ def load_task(instance_id: str, tasks_dir: str | Path = DEFAULT_TASKS_DIR) -> di
     path = Path(tasks_dir) / f"{instance_id}.json"
     if not path.exists():
         raise FileNotFoundError(f"{path} not found. Run `trace-agent swe fetch` first.")
-    with path.open("r") as f:
+    with path.open("r", encoding='utf-8') as f:
         return json.load(f)
 
 
@@ -91,10 +91,11 @@ def prepare_workspace(
     worktree.parent.mkdir(parents=True, exist_ok=True)
     repo_url = f"https://github.com/{task['repo']}.git"
     print(f"Cloning {repo_url} into {worktree}...")
-    subprocess.run(["git", "clone", repo_url, str(worktree)], check=True)
+    subprocess.run(["git", "clone", "--depth", "1", repo_url, str(worktree)], check=True, timeout=300)
     subprocess.run(
         ["git", "-C", str(worktree), "checkout", task["base_commit"]],
         check=True,
+        timeout=60,
     )
     return worktree
 

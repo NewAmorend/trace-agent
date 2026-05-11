@@ -6,11 +6,12 @@ from analyzer import locate_failure, score_suspicious_steps
 from classifier import normalize_steps
 from models import BatchSummary, EvalMetrics, EvalResult, NormalizedStep
 from parser import load_trajectory
+from patterns import RISK_THRESHOLD_HIGH, RISK_THRESHOLD_MEDIUM, RISK_THRESHOLD_SUSPICIOUS_STEPS_HIGH
 from test_signals import looks_like_test_failure
 from tree import build_trace_tree, render_trace_tree
 
 
-SUPPORTED_SUFFIXES = {".jsonl"}
+SUPPORTED_SUFFIXES = {".jsonl", ".json"}
 
 
 def evaluate_file(path: str | Path) -> EvalResult:
@@ -108,8 +109,8 @@ def summarize_batch(results: list[EvalResult]) -> BatchSummary:
 
 
 def _risk_level(max_score: float, suspicious_steps: int) -> str:
-    if max_score >= 0.45 or suspicious_steps >= 3:
+    if max_score >= RISK_THRESHOLD_HIGH or suspicious_steps >= RISK_THRESHOLD_SUSPICIOUS_STEPS_HIGH:
         return "high"
-    if max_score >= 0.3 or suspicious_steps:
+    if max_score >= RISK_THRESHOLD_MEDIUM or suspicious_steps:
         return "medium"
     return "low"

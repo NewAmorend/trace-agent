@@ -22,7 +22,7 @@ def load_trajectory(path: str) -> Trajectory:
     """
     input_path = Path(path)
     try:
-        with open(input_path, 'r') as f:
+        with open(input_path, 'r', encoding='utf-8') as f:
             raw = f.read()
     except FileNotFoundError:
         raise FileNotFoundError(f"Trajectory file not found: {path}")

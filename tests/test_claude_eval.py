@@ -7,10 +7,7 @@ from adapters.claude_adapter import ClaudeAdapter
 from evaluator import evaluate_file
 from main import build_parser
 from runner import build_claude_exec_command
-
-
-def write_jsonl(path: Path, events: list[dict]) -> None:
-    path.write_text("\n".join(json.dumps(e) for e in events))
+from tests._helpers import write_jsonl
 
 
 def sample_claude_events(final_failure: bool = False) -> list[dict]:
@@ -169,6 +166,97 @@ class ClaudeRunnerCommandTests(unittest.TestCase):
     def test_build_claude_exec_command_without_model_has_no_model_flag(self):
         cmd = build_claude_exec_command("Fix the bug")
         self.assertNotIn("--model", cmd)
+
+
+class ClaudeAdapterEdgeCaseTests(unittest.TestCase):
+    def setUp(self):
+        self.adapter = ClaudeAdapter()
+
+    def test_multi_edit_creates_file_change_step(self):
+        events = [
+            {"type": "system", "subtype": "init", "session_id": "s1"},
+            {
+                "type": "assistant",
+                "message": {
+                    "id": "m1",
+                    "role": "assistant",
+                    "content": [
+                        {"type": "tool_use", "id": "tu-1", "name": "MultiEdit", "input": {"file_path": "src/main.py"}},
+                    ],
+                },
+            },
+            {"type": "tool_result", "tool_use_id": "tu-1", "content": [{"type": "text", "text": "Edited"}]},
+            {"type": "result", "subtype": "success"},
+        ]
+        traj = self.adapter.transform(events, "test.jsonl")
+        self.assertEqual(traj.steps[0].item_type, "file_change")
+        self.assertIn("src/main.py", traj.steps[0].action)
+
+    def test_unknown_tool_defaults_to_command_execution(self):
+        events = [
+            {"type": "system", "subtype": "init", "session_id": "s1"},
+            {
+                "type": "assistant",
+                "message": {
+                    "id": "m1",
+                    "role": "assistant",
+                    "content": [
+                        {"type": "tool_use", "id": "tu-1", "name": "WebFetch", "input": {"url": "http://example.com"}},
+                    ],
+                },
+            },
+            {"type": "tool_result", "tool_use_id": "tu-1", "content": [{"type": "text", "text": "Page content"}]},
+            {"type": "result", "subtype": "success"},
+        ]
+        traj = self.adapter.transform(events, "test.jsonl")
+        self.assertEqual(traj.steps[0].item_type, "command_execution")
+        self.assertIn("WebFetch", traj.steps[0].action)
+
+    def test_empty_thinking_block(self):
+        events = [
+            {"type": "system", "subtype": "init", "session_id": "s1"},
+            {
+                "type": "assistant",
+                "message": {
+                    "id": "m1",
+                    "role": "assistant",
+                    "content": [
+                        {"type": "thinking", "thinking": ""},
+                        {"type": "text", "text": "Hello"},
+                    ],
+                },
+            },
+            {"type": "result", "subtype": "success"},
+        ]
+        traj = self.adapter.transform(events, "test.jsonl")
+        self.assertEqual(len(traj.steps), 1)
+        self.assertIsNone(traj.steps[0].thought)
+
+    def test_user_event_with_tool_result_backfills_observation(self):
+        events = [
+            {"type": "system", "subtype": "init", "session_id": "s1"},
+            {
+                "type": "assistant",
+                "message": {
+                    "id": "m1",
+                    "role": "assistant",
+                    "content": [
+                        {"type": "tool_use", "id": "tu-1", "name": "Bash", "input": {"command": "ls"}},
+                    ],
+                },
+            },
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {"type": "tool_result", "tool_use_id": "tu-1", "content": [{"type": "text", "text": "file.txt"}]},
+                    ],
+                },
+            },
+            {"type": "result", "subtype": "success"},
+        ]
+        traj = self.adapter.transform(events, "test.jsonl")
+        self.assertIn("file.txt", traj.steps[0].observation)
 
 
 class ClaudeCLIFlagTests(unittest.TestCase):

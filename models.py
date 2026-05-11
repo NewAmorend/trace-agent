@@ -1,35 +1,34 @@
 """Data models for trajectory analysis."""
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 @dataclass
 class Step:
     """Raw step from trajectory JSON."""
     step_id: int
-    event_id: Optional[str] = None
-    thought: Optional[str] = None
+    event_id: str | None = None
+    thought: str | None = None
     action: str = ""
-    observation: Optional[str] = None
-    diff: Optional[str] = None
+    observation: str | None = None
+    diff: str | None = None
     item_type: str = ""
-    exit_code: Optional[int] = None
-    status: Optional[str] = None
+    exit_code: int | None = None
+    status: str | None = None
 
 
 @dataclass
 class NormalizedStep:
     """Step with additional classification fields."""
     step_id: int
-    event_id: Optional[str]
-    thought: Optional[str]
+    event_id: str | None
+    thought: str | None
     action: str
-    observation: Optional[str]
-    diff: Optional[str]
+    observation: str | None
+    diff: str | None
     item_type: str
-    exit_code: Optional[int]
-    status: Optional[str]
+    exit_code: int | None
+    status: str | None
     action_type: str
     stage: str
     state_change: bool
@@ -49,10 +48,10 @@ class TraceNode:
 @dataclass
 class Diagnosis:
     """Diagnosis of trajectory failure."""
-    critical_step: Optional[NormalizedStep] = None
+    critical_step: NormalizedStep | None = None
     failure_stage: str = ""
     error_type: str = ""
-    replay_branch_step: Optional[int] = None
+    replay_branch_step: int | None = None
     replay_hint: str = ""
     confidence: str = "low"
     repair_suggestions: list[str] = field(default_factory=list)
@@ -65,8 +64,8 @@ class Trajectory:
     task: str
     final_status: str
     steps: list[Step]
-    thread_id: Optional[str] = None
-    failure_message: Optional[str] = None
+    thread_id: str | None = None
+    failure_message: str | None = None
 
 
 @dataclass
@@ -93,7 +92,7 @@ class EvalResult:
     tree_md: str
     diagnosis: Diagnosis
     metrics: EvalMetrics
-    failure_message: Optional[str] = None
+    failure_message: str | None = None
 
 
 @dataclass

@@ -12,10 +12,7 @@ from parser import load_trajectory
 from report import format_diagnosis_md
 from runner import build_codex_exec_command
 from swe import build_prompt as build_swe_prompt
-
-
-def write_jsonl(path: Path, events: list[dict]) -> None:
-    path.write_text("\n".join(json.dumps(event) for event in events))
+from tests._helpers import write_jsonl
 
 
 class CodexEvalTests(unittest.TestCase):
@@ -316,6 +313,113 @@ class CodexEvalTests(unittest.TestCase):
         self.assertIn("bad \\| reason wrap", markdown)
         self.assertIn("pytest \\| tee output next line", markdown)
         self.assertNotIn("| bad | reason", markdown)
+
+
+class CodexAdapterEdgeCaseTests(unittest.TestCase):
+    def test_mcp_tool_call_with_dict_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "mcp.jsonl"
+            write_jsonl(path, [
+                {"type": "thread.started", "thread_id": "t1"},
+                {"type": "item.completed", "item": {"id": "u1", "type": "user_message", "text": "Search"}},
+                {
+                    "type": "item.completed",
+                    "item": {
+                        "id": "mcp1",
+                        "type": "mcp_tool_call",
+                        "server": "web",
+                        "tool": "search",
+                        "arguments": {"q": "test"},
+                        "error": {"message": "Rate limit exceeded"},
+                    },
+                },
+                {"type": "turn.failed", "error": {"message": "failed"}},
+            ])
+            traj = load_trajectory(str(path))
+            self.assertEqual(traj.final_status, "failed")
+            self.assertEqual(len(traj.steps), 1)
+            self.assertIn("Rate limit exceeded", traj.steps[0].observation)
+
+    def test_mcp_tool_call_with_string_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "mcp_str.jsonl"
+            write_jsonl(path, [
+                {"type": "thread.started", "thread_id": "t1"},
+                {"type": "item.completed", "item": {"id": "u1", "type": "user_message", "text": "Go"}},
+                {
+                    "type": "item.completed",
+                    "item": {
+                        "id": "mcp1",
+                        "type": "mcp_tool_call",
+                        "tool": "fetch",
+                        "error": "connection refused",
+                    },
+                },
+                {"type": "turn.failed", "error": "connection refused"},
+            ])
+            traj = load_trajectory(str(path))
+            self.assertEqual(traj.final_status, "failed")
+            self.assertIn("connection refused", traj.steps[0].observation)
+
+    def test_web_search_creates_step(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ws.jsonl"
+            write_jsonl(path, [
+                {"type": "thread.started", "thread_id": "t1"},
+                {"type": "item.completed", "item": {"id": "u1", "type": "user_message", "text": "Search"}},
+                {
+                    "type": "item.completed",
+                    "item": {
+                        "id": "ws1",
+                        "type": "web_search",
+                        "query": "how to fix pytest errors",
+                    },
+                },
+                {"type": "turn.completed"},
+            ])
+            traj = load_trajectory(str(path))
+            self.assertEqual(len(traj.steps), 1)
+            self.assertEqual(traj.steps[0].item_type, "web_search")
+            self.assertIn("web_search", traj.steps[0].action)
+
+    def test_error_item_type_creates_step(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "err.jsonl"
+            write_jsonl(path, [
+                {"type": "thread.started", "thread_id": "t1"},
+                {"type": "item.completed", "item": {"id": "u1", "type": "user_message", "text": "Do task"}},
+                {
+                    "type": "item.completed",
+                    "item": {
+                        "id": "e1",
+                        "type": "error",
+                        "message": "Sandbox violation detected",
+                    },
+                },
+                {"type": "turn.failed", "error": "Sandbox violation detected"},
+            ])
+            traj = load_trajectory(str(path))
+            self.assertEqual(traj.final_status, "failed")
+            self.assertEqual(len(traj.steps), 1)
+            self.assertEqual(traj.steps[0].item_type, "error")
+            self.assertIn("Sandbox violation", traj.steps[0].observation)
+
+    def test_turn_failed_with_string_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "str_err.jsonl"
+            write_jsonl(path, [
+                {"type": "thread.started", "thread_id": "t1"},
+                {"type": "item.completed", "item": {"id": "u1", "type": "user_message", "text": "Task"}},
+                {"type": "item.completed", "item": {
+                    "id": "c1", "type": "command_execution",
+                    "command": "pytest", "aggregated_output": "1 failed",
+                    "exit_code": 1, "status": "completed",
+                }},
+                {"type": "turn.failed", "error": "Simple string error"},
+            ])
+            traj = load_trajectory(str(path))
+            self.assertEqual(traj.final_status, "failed")
+            self.assertEqual(traj.failure_message, "Simple string error")
 
 
 def sample_events(final_failure: bool = True) -> list[dict]:

@@ -1,7 +1,9 @@
 """Analysis logic for detecting suspicious steps and failures."""
 
+import copy
+
 from models import Diagnosis, NormalizedStep
-from patterns import PATTERNS, Pattern
+from patterns import PATTERNS, Pattern, RISK_THRESHOLD_HIGH, RISK_THRESHOLD_MEDIUM
 from test_signals import looks_like_test_failure, looks_like_test_success
 
 
@@ -30,7 +32,7 @@ def score_suspicious_steps(steps: list[NormalizedStep], task: str, final_status:
 
     Returns steps with suspicious_score and suspicious_reasons populated.
     """
-    steps = steps.copy()
+    steps = copy.deepcopy(steps)
 
     has_impl_edit = any(
         s.action_type == 'edit_file' and not _is_test_path(s.action, s.diff or "")
@@ -80,9 +82,9 @@ def score_suspicious_steps(steps: list[NormalizedStep], task: str, final_status:
                                "Tests passed after modifying tests without implementation change; high-risk success.")
                     break
 
-        # Rule D: Repeated command
+        # Rule D: Repeated command (excluding test runs — re-running tests is expected)
         action_key = step.action.strip()
-        if action_key and action_key in seen_actions:
+        if action_key and action_key in seen_actions and step.action_type != 'run_test':
             _apply(step, "repeated_command", "Repeated command; may be redundant.")
         if action_key:
             seen_actions[action_key] = i
@@ -117,9 +119,9 @@ def score_suspicious_steps(steps: list[NormalizedStep], task: str, final_status:
 
 
 def _confidence_for(score: float) -> str:
-    if score >= 0.45:
+    if score >= RISK_THRESHOLD_HIGH:
         return "high"
-    if score >= 0.25:
+    if score >= RISK_THRESHOLD_MEDIUM:
         return "medium"
     return "low"
 

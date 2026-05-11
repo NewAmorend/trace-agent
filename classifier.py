@@ -4,86 +4,95 @@ import re
 from typing import Callable
 from models import Step, NormalizedStep
 
+_TEST_PATTERNS = [
+    re.compile(r'\bpytest\b'),
+    re.compile(r'\bnpm\s+test\b'),
+    re.compile(r'\byarn\s+test\b'),
+    re.compile(r'\bcargo\s+test\b'),
+    re.compile(r'\bgo\s+test\b'),
+    re.compile(r'\bmvn\s+test\b'),
+    re.compile(r'\bgradle\s+test\b'),
+    re.compile(r'\bunittest\b'),
+    re.compile(r'\bpython\s+-m\s+pytest\b'),
+]
+
+_SEARCH_PATTERNS = [
+    re.compile(r'\brg\b'),
+    re.compile(r'\bgrep\b'),
+    re.compile(r'\bfind\b'),
+    re.compile(r'\bweb_search\b'),
+    re.compile(r'\bglob\s*\{'),
+    re.compile(r'\bwebsearch\s*\{'),
+]
+
+_INSPECT_PATTERNS = [
+    re.compile(r'\bcat\b'),
+    re.compile(r'\bsed\b'),
+    re.compile(r'\bnl\b'),
+    re.compile(r'\bhead\b'),
+    re.compile(r'\btail\b'),
+    re.compile(r'\blesser\b'),
+    re.compile(r'\bless\b'),
+    re.compile(r'\bread\s*\{'),
+    re.compile(r'\bwebfetch\s*\{'),
+]
+
+_ENV_PATTERNS = [
+    re.compile(r'\bpip\s+install\b'),
+    re.compile(r'\bnpm\s+install\b'),
+    re.compile(r'\byarn\s+add\b'),
+    re.compile(r'\bapt\s+install\b'),
+    re.compile(r'\bconda\s+install\b'),
+    re.compile(r'\bbrew\s+install\b'),
+]
+
+_GIT_PATTERNS = [
+    re.compile(r'\bgit\s+status\b'),
+    re.compile(r'\bgit\s+diff\b'),
+    re.compile(r'\bgit\s+checkout\b'),
+    re.compile(r'\bgit\s+reset\b'),
+    re.compile(r'\bgit\s+apply\b'),
+]
+
+_EDIT_PATTERNS = [
+    re.compile(r'\bapply_patch\b'),
+    re.compile(r'\bwrite\s+file\b'),
+    re.compile(r'\bappend\s+to\b'),
+]
+
+_ENV_VERIFY_PATTERNS = [
+    re.compile(r'\bpython\s+--version\b'),
+    re.compile(r'\bnode\s+--version\b'),
+    re.compile(r'\bpip\s+--version\b'),
+    re.compile(r'\bnpm\s+--version\b'),
+    re.compile(r'\bcargo\s+--version\b'),
+    re.compile(r'\bgo\s+version\b'),
+]
+
 
 def classify_action_type(action: str, diff: str | None) -> str:
     """Classify action type based on command and diff."""
     action_lower = action.lower()
 
-    # Check for test commands
-    test_patterns = [
-        r'\bpytest\b',
-        r'\bnpm\s+test\b',
-        r'\byarn\s+test\b',
-        r'\bcargo\s+test\b',
-        r'\bgo\s+test\b',
-        r'\bmvn\s+test\b',
-        r'\bgradle\s+test\b',
-        r'\bunittest\b',
-        r'\bpython\s+-m\s+pytest\b',
-    ]
-    if any(re.search(pattern, action_lower) for pattern in test_patterns):
+    if any(p.search(action_lower) for p in _TEST_PATTERNS):
         return 'run_test'
 
-    # Check for search commands
-    search_patterns = [
-        r'\brg\b',
-        r'\bgrep\b',
-        r'\bfind\b',
-        r'\bweb_search\b',
-        r'\bglob\s*\{',       # Claude Glob tool
-        r'\bwebsearch\s*\{',  # Claude WebSearch tool
-    ]
-    if any(re.search(pattern, action_lower) for pattern in search_patterns):
+    if any(p.search(action_lower) for p in _SEARCH_PATTERNS):
         return 'search'
 
-    # Check for inspection commands
-    inspect_patterns = [
-        r'\bcat\b',
-        r'\bsed\b',
-        r'\bnl\b',
-        r'\bhead\b',
-        r'\btail\b',
-        r'\blesser\b',
-        r'\bless\b',
-        r'\bread\s*\{',      # Claude Read tool
-        r'\bwebfetch\s*\{',  # Claude WebFetch tool
-    ]
-    if any(re.search(pattern, action_lower) for pattern in inspect_patterns):
+    if any(p.search(action_lower) for p in _INSPECT_PATTERNS):
         return 'inspect_file'
 
-    # Check for environment change commands
-    env_patterns = [
-        r'\bpip\s+install\b',
-        r'\bnpm\s+install\b',
-        r'\byarn\s+add\b',
-        r'\bapt\s+install\b',
-        r'\bconda\s+install\b',
-        r'\bbrew\s+install\b',
-    ]
-    if any(re.search(pattern, action_lower) for pattern in env_patterns):
+    if any(p.search(action_lower) for p in _ENV_PATTERNS):
         return 'env_change'
 
-    # Check for git actions
-    git_patterns = [
-        r'\bgit\s+status\b',
-        r'\bgit\s+diff\b',
-        r'\bgit\s+checkout\b',
-        r'\bgit\s+reset\b',
-        r'\bgit\s+apply\b',
-    ]
-    if any(re.search(pattern, action_lower) for pattern in git_patterns):
+    if any(p.search(action_lower) for p in _GIT_PATTERNS):
         return 'git_action'
 
-    # Check for edit operations
     if diff and diff.strip():
         return 'edit_file'
 
-    edit_patterns = [
-        r'\bapply_patch\b',
-        r'\bwrite\s+file\b',
-        r'\bappend\s+to\b',
-    ]
-    if any(re.search(pattern, action_lower) for pattern in edit_patterns):
+    if any(p.search(action_lower) for p in _EDIT_PATTERNS):
         return 'edit_file'
 
     return 'other'
@@ -94,19 +103,9 @@ def classify_stage(action: str, action_type: str, observation: str | None) -> st
     action_lower = action.lower()
     obs_lower = (observation or "").lower()
 
-    # Environment verification
-    env_verify_patterns = [
-        r'\bpython\s+--version\b',
-        r'\bnode\s+--version\b',
-        r'\bpip\s+--version\b',
-        r'\bnpm\s+--version\b',
-        r'\bcargo\s+--version\b',
-        r'\bgo\s+version\b',
-    ]
-    if any(re.search(pattern, action_lower) for pattern in env_verify_patterns):
+    if any(p.search(action_lower) for p in _ENV_VERIFY_PATTERNS):
         return 'environment verification'
 
-    # Direct mapping from action types
     if action_type == 'env_change':
         return 'dependency installation'
     if action_type == 'edit_file':
@@ -116,7 +115,6 @@ def classify_stage(action: str, action_type: str, observation: str | None) -> st
     if action_type in ['search', 'inspect_file']:
         return 'inspection/debugging'
 
-    # Check observation for stage clues
     if 'error' in obs_lower or 'exception' in obs_lower:
         return 'inspection/debugging'
 

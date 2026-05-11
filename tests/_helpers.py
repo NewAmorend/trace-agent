@@ -1,6 +1,13 @@
 """Test helpers for building synthetic Step / NormalizedStep objects."""
 
+import json
+from pathlib import Path
+
 from models import NormalizedStep, Step
+
+
+def write_jsonl(path: Path, events: list[dict]) -> None:
+    path.write_text("\n".join(json.dumps(event) for event in events))
 
 
 def make_step(

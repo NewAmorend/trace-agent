@@ -1,7 +1,7 @@
 """Adapter for OpenAI Codex CLI session JSONL format."""
 
 import json
-from adapters.base import BaseAdapter
+from adapters.base import BaseAdapter, infer_task_from_source
 from models import Step, Trajectory
 
 
@@ -139,7 +139,10 @@ class CodexAdapter(BaseAdapter):
 
                 obs = None
                 if error:
-                    obs = error.get('message', '')
+                    if isinstance(error, dict):
+                        obs = error.get('message', '')
+                    elif isinstance(error, str):
+                        obs = error
                     has_failure = True
                 elif result:
                     content = result.get('content', [])
@@ -192,7 +195,7 @@ class CodexAdapter(BaseAdapter):
         final_status = 'failed' if has_failure else 'success'
 
         if task == 'Unknown task':
-            task = _infer_task_from_source(source_path)
+            task = infer_task_from_source(source_path)
 
         return Trajectory(
             source_path=source_path,
@@ -233,10 +236,3 @@ def _extract_text(details: dict) -> str:
         return "\n".join(parts).strip()
 
     return ""
-
-
-def _infer_task_from_source(source_path: str) -> str:
-    if not source_path:
-        return 'Unknown task'
-    name = source_path.rsplit('/', 1)[-1].rsplit('.', 1)[0]
-    return name.replace('_', ' ').replace('-', ' ')
