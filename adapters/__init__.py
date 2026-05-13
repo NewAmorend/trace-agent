@@ -3,10 +3,12 @@
 from adapters.base import BaseAdapter, infer_task_from_source
 from adapters.claude_adapter import ClaudeAdapter
 from adapters.codex_adapter import CodexAdapter
+from adapters.deerflow_adapter import DeerFlowAdapter
 
 _ADAPTERS: list[BaseAdapter] = [
     CodexAdapter(),
     ClaudeAdapter(),
+    DeerFlowAdapter(),
 ]
 
 

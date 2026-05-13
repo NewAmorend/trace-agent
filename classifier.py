@@ -70,8 +70,17 @@ _ENV_VERIFY_PATTERNS = [
 ]
 
 
-def classify_action_type(action: str, diff: str | None) -> str:
+def classify_action_type(action: str, diff: str | None, item_type: str = "") -> str:
     """Classify action type based on command and diff."""
+    if item_type == "middleware":
+        return "middleware_action"
+    if item_type == "tool_call":
+        return _classify_tool_call(action)
+    if item_type == "tool_result":
+        return "tool_result"
+    if item_type == "error":
+        return "error"
+
     action_lower = action.lower()
 
     if any(p.search(action_lower) for p in _TEST_PATTERNS):
@@ -98,10 +107,48 @@ def classify_action_type(action: str, diff: str | None) -> str:
     return 'other'
 
 
-def classify_stage(action: str, action_type: str, observation: str | None) -> str:
+_TOOL_CALL_MAP = {
+    "bash": "run_test" if True else "other",
+    "shell": "other",
+}
+
+_TEST_TOOL_NAMES = frozenset({"pytest", "run_tests", "test_runner", "npm_test"})
+_EDIT_TOOL_NAMES = frozenset({"apply_patch", "write_file", "edit_file", "str_replace_editor", "create_file", "insert_content", "replace_in_file"})
+_SEARCH_TOOL_NAMES = frozenset({"search", "grep", "find", "glob", "web_search", "ripgrep"})
+_INSPECT_TOOL_NAMES = frozenset({"cat", "read_file", "view_file", "read", "head", "tail"})
+_ENV_TOOL_NAMES = frozenset({"pip_install", "npm_install", "install_package"})
+
+
+def _classify_tool_call(action: str) -> str:
+    tool_name = action.split()[0].lower() if action else ""
+    if tool_name in _TEST_TOOL_NAMES:
+        return "run_test"
+    if tool_name in _EDIT_TOOL_NAMES:
+        return "edit_file"
+    if tool_name in _SEARCH_TOOL_NAMES:
+        return "search"
+    if tool_name in _INSPECT_TOOL_NAMES:
+        return "inspect_file"
+    if tool_name in _ENV_TOOL_NAMES:
+        return "env_change"
+    if "test" in tool_name or "pytest" in tool_name:
+        return "run_test"
+    if "patch" in tool_name or "edit" in tool_name or "write" in tool_name:
+        return "edit_file"
+    if "search" in tool_name or "grep" in tool_name or "find" in tool_name:
+        return "search"
+    if "bash" in tool_name or "shell" in tool_name or "execute" in tool_name:
+        return "other"
+    return "tool_call"
+
+
+def classify_stage(action: str, action_type: str, observation: str | None, item_type: str = "") -> str:
     """Classify the stage of a step."""
     action_lower = action.lower()
     obs_lower = (observation or "").lower()
+
+    if item_type == "middleware":
+        return "middleware"
 
     if any(p.search(action_lower) for p in _ENV_VERIFY_PATTERNS):
         return 'environment verification'
@@ -112,8 +159,14 @@ def classify_stage(action: str, action_type: str, observation: str | None) -> st
         return 'patching'
     if action_type == 'run_test':
         return 'verification'
-    if action_type in ['search', 'inspect_file']:
+    if action_type in ['search', 'inspect_file', 'tool_call']:
         return 'inspection/debugging'
+    if action_type == 'middleware_action':
+        return 'middleware'
+    if action_type == 'tool_result':
+        return 'inspection/debugging'
+    if action_type == 'error':
+        return 'error'
 
     if 'error' in obs_lower or 'exception' in obs_lower:
         return 'inspection/debugging'
@@ -121,8 +174,14 @@ def classify_stage(action: str, action_type: str, observation: str | None) -> st
     return 'other'
 
 
-def is_state_changing(action_type: str, action: str, diff: str | None) -> bool:
+def is_state_changing(action_type: str, action: str, diff: str | None, item_type: str = "") -> bool:
     """Determine if a step changes the system state."""
+    if item_type == "middleware":
+        action_lower = action.lower()
+        if "summarize" in action_lower or "compaction" in action_lower:
+            return True
+        return False
+
     action_lower = action.lower()
 
     if action_type == 'edit_file':
@@ -130,7 +189,6 @@ def is_state_changing(action_type: str, action: str, diff: str | None) -> bool:
     if action_type == 'env_change':
         return True
 
-    # Specific git operations
     if action_type == 'git_action':
         if 'git checkout' in action_lower:
             return True
@@ -159,9 +217,9 @@ def normalize_steps(
 
 
 def _rule_classify(step: Step) -> NormalizedStep:
-    action_type = classify_action_type(step.action, step.diff)
-    stage = classify_stage(step.action, action_type, step.observation)
-    state_change = is_state_changing(action_type, step.action, step.diff)
+    action_type = classify_action_type(step.action, step.diff, step.item_type)
+    stage = classify_stage(step.action, action_type, step.observation, step.item_type)
+    state_change = is_state_changing(action_type, step.action, step.diff, step.item_type)
 
     return NormalizedStep(
         step_id=step.step_id,
@@ -179,4 +237,5 @@ def _rule_classify(step: Step) -> NormalizedStep:
         suspicious_score=0.0,
         suspicious_reasons=[],
         matched_pattern_names=[],
+        extra=step.extra,
     )

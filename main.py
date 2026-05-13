@@ -192,6 +192,14 @@ def run_codex_command(args: argparse.Namespace) -> int:
                 model=args.model,
                 timeout=args.timeout,
             )
+        elif args.agent == "deerflow":
+            from runner import run_deerflow_trace
+            result = run_deerflow_trace(
+                args.prompt,
+                output=args.output,
+                cwd=args.cwd,
+                timeout=args.timeout,
+            )
         else:
             result = run_codex_trace(
                 args.prompt,
@@ -337,7 +345,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_trace_parser.add_argument("--quiet", action="store_true")
     run_trace_parser.add_argument(
         "--agent",
-        choices=["codex", "claude"],
+        choices=["codex", "claude", "deerflow"],
         default="codex",
         help="Agent harness to use (default: codex)",
     )
@@ -374,7 +382,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--timeout", type=int, default=300)
     run_parser.add_argument(
         "--agent",
-        choices=["codex", "claude"],
+        choices=["codex", "claude", "deerflow"],
         default="codex",
         help="Agent harness to use (default: codex)",
     )
@@ -449,7 +457,7 @@ def build_parser() -> argparse.ArgumentParser:
     swe_run_parser.add_argument("--quiet", action="store_true")
     swe_run_parser.add_argument(
         "--agent",
-        choices=["codex", "claude"],
+        choices=["codex", "claude", "deerflow"],
         default="codex",
         help="Agent harness to use (default: codex)",
     )

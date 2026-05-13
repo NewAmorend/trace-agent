@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
-from runner import CodexRunResult, run_claude_trace, run_codex_trace
+from runner import CodexRunResult, run_claude_trace, run_codex_trace, run_deerflow_trace
 
 
 DEFAULT_DATASET = "princeton-nlp/SWE-bench_Lite"
@@ -179,6 +179,13 @@ def run_task(
             output=trajectory_path,
             cwd=workspace,
             model=model,
+            timeout=timeout,
+        )
+    elif agent == "deerflow":
+        result = run_deerflow_trace(
+            prompt,
+            output=trajectory_path,
+            cwd=workspace,
             timeout=timeout,
         )
     else:

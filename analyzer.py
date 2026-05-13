@@ -41,6 +41,7 @@ def score_suspicious_steps(steps: list[NormalizedStep], task: str, final_status:
 
     seen_actions: dict[str, int] = {}
     last_failed_test_idx = -1
+    summarization_count = 0
 
     for i, step in enumerate(steps):
         step.suspicious_score = 0.0
@@ -114,6 +115,31 @@ def score_suspicious_steps(steps: list[NormalizedStep], task: str, final_status:
         if 'git reset' in action_lower or 'git checkout' in action_lower:
             _apply(step, "git_rollback",
                    "Rollback-like git operation; earlier work may be trial-and-error.")
+
+        # Rule H: Middleware events (DeerFlow summarization, loop detection, etc.)
+        if step.item_type == "middleware":
+            mw_action_lower = step.action.lower()
+            if "summarize" in mw_action_lower or "compaction" in mw_action_lower:
+                summarization_count += 1
+                if summarization_count >= 2:
+                    _apply(step, "excessive_summarization",
+                           "Context summarization/compaction triggered; agent may be losing context.")
+            if "loop" in mw_action_lower and "detect" in mw_action_lower:
+                _apply(step, "loop_detection_triggered",
+                       "Loop detection middleware triggered; agent was repeating tool calls.")
+
+        # Rule I: Sub-agent failures
+        if step.item_type == "tool_result" and step.observation:
+            obs_lower = step.observation.lower()
+            if "subagent" in obs_lower or "sub-agent" in obs_lower:
+                if "fail" in obs_lower or "error" in obs_lower or "timed_out" in obs_lower:
+                    _apply(step, "subagent_failure",
+                           "Sub-agent execution failed.")
+
+        # Rule J: Tool call errors
+        if step.item_type == "tool_result" and step.status == "error":
+            _apply(step, "tool_error",
+                   "Tool call returned an error result.")
 
     return steps
 
@@ -194,6 +220,12 @@ def locate_failure(steps: list[NormalizedStep], final_status: str) -> Diagnosis:
             elif critical.action_type == 'env_change':
                 diagnosis.error_type = "environment or dependency issue"
                 diagnosis.replay_hint = PATTERNS["env_change_then_dependency_error"].repair_hint
+            elif critical.action_type == 'middleware_action':
+                diagnosis.error_type = "middleware intervention issue"
+                diagnosis.replay_hint = "Review the middleware action that may have disrupted the agent's reasoning."
+            elif critical.action_type == 'error':
+                diagnosis.error_type = "runtime error"
+                diagnosis.replay_hint = "Investigate the error message for root cause."
             else:
                 diagnosis.error_type = "uncertain"
                 diagnosis.replay_hint = "Review this step and consider alternative approaches."

@@ -79,6 +79,34 @@ PATTERNS: dict[str, Pattern] = {
         error_type="uncertain",
         repair_hint="Earlier work may have been trial-and-error. Inspect the rolled-back changes before continuing.",
     ),
+    "excessive_summarization": Pattern(
+        name="excessive_summarization",
+        description="Context summarization/compaction triggered multiple times; agent may be losing track of earlier work.",
+        score_weight=0.30,
+        error_type="context management failure",
+        repair_hint="Frequent summarization suggests the conversation is too long. Consider breaking the task into smaller sub-tasks or increasing the context window.",
+    ),
+    "loop_detection_triggered": Pattern(
+        name="loop_detection_triggered",
+        description="Loop detection middleware fired; agent was repeating the same tool calls without progress.",
+        score_weight=0.35,
+        error_type="unproductive loop",
+        repair_hint="The agent entered a tool-call loop. Review the failing tool call and provide more specific instructions or break down the task.",
+    ),
+    "subagent_failure": Pattern(
+        name="subagent_failure",
+        description="A sub-agent execution failed, potentially causing the overall task to fail.",
+        score_weight=0.30,
+        error_type="sub-agent execution failure",
+        repair_hint="A sub-agent failed. Check the sub-agent's task description and permissions; simplify the sub-task or increase its timeout.",
+    ),
+    "tool_error": Pattern(
+        name="tool_error",
+        description="A tool call returned an error result.",
+        score_weight=0.15,
+        error_type="tool execution error",
+        repair_hint="A tool returned an error. Inspect the tool call arguments and the error message to understand the root cause.",
+    ),
 }
 
 

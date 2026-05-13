@@ -15,6 +15,7 @@ class Step:
     item_type: str = ""
     exit_code: int | None = None
     status: str | None = None
+    extra: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -35,6 +36,7 @@ class NormalizedStep:
     suspicious_score: float = 0.0
     suspicious_reasons: list[str] = field(default_factory=list)
     matched_pattern_names: list[str] = field(default_factory=list)
+    extra: dict = field(default_factory=dict)
 
 
 @dataclass
