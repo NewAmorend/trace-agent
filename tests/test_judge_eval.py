@@ -190,5 +190,44 @@ class EvaluateJudgesTests(unittest.TestCase):
         self.assertTrue(called["flag"])
 
 
+class FormatMetricsTests(unittest.TestCase):
+    def _metrics(self, **overrides):
+        from judge_eval import JudgeMetrics
+        defaults = dict(
+            suspicious_precision=0.8,
+            suspicious_recall=0.6,
+            suspicious_f1=0.685,
+            critical_hit_at_1=0.5,
+            category_accuracy=0.75,
+            labeled_trajectories=4,
+            skipped_trajectories=1,
+            per_trajectory=[],
+        )
+        defaults.update(overrides)
+        return JudgeMetrics(**defaults)
+
+    def test_format_md_includes_all_metrics(self):
+        from judge_eval import format_metrics_md
+        out = format_metrics_md(self._metrics())
+        self.assertIn("Precision: 0.800", out)
+        self.assertIn("Recall:    0.600", out)
+        self.assertIn("F1:        0.685", out)
+        self.assertIn("hit@1: 0.500", out)
+        self.assertIn("0.750", out)
+        self.assertIn("Labeled trajectories: 4", out)
+        self.assertIn("Skipped (no trajectory file): 1", out)
+
+    def test_format_md_handles_none_category_accuracy(self):
+        from judge_eval import format_metrics_md
+        out = format_metrics_md(self._metrics(category_accuracy=None))
+        self.assertIn("n/a", out)
+
+    def test_metrics_to_dict_round_trips_to_json(self):
+        from judge_eval import metrics_to_dict
+        d = metrics_to_dict(self._metrics())
+        s = json.dumps(d)
+        self.assertEqual(json.loads(s)["suspicious_f1"], 0.685)
+
+
 if __name__ == "__main__":
     unittest.main()

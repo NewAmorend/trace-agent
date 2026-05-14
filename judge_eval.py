@@ -213,3 +213,41 @@ def evaluate_judges(
         skipped_trajectories=skipped,
         per_trajectory=per_trajectory,
     )
+
+
+def format_metrics_md(metrics: JudgeMetrics) -> str:
+    if metrics.category_accuracy is None:
+        cat_line = "Category accuracy: n/a (no overlap)"
+    else:
+        cat_line = f"Category accuracy: {metrics.category_accuracy:.3f}"
+
+    return "\n".join([
+        "# Judge Eval",
+        "",
+        f"Labeled trajectories: {metrics.labeled_trajectories}",
+        f"Skipped (no trajectory file): {metrics.skipped_trajectories}",
+        "",
+        "## Suspicious-step detection",
+        f"Precision: {metrics.suspicious_precision:.3f}",
+        f"Recall:    {metrics.suspicious_recall:.3f}",
+        f"F1:        {metrics.suspicious_f1:.3f}",
+        "",
+        "## Critical-step localization",
+        f"hit@1: {metrics.critical_hit_at_1:.3f}",
+        "",
+        f"## {cat_line}",
+        "",
+    ])
+
+
+def metrics_to_dict(metrics: JudgeMetrics) -> dict:
+    return {
+        "suspicious_precision": metrics.suspicious_precision,
+        "suspicious_recall": metrics.suspicious_recall,
+        "suspicious_f1": metrics.suspicious_f1,
+        "critical_hit_at_1": metrics.critical_hit_at_1,
+        "category_accuracy": metrics.category_accuracy,
+        "labeled_trajectories": metrics.labeled_trajectories,
+        "skipped_trajectories": metrics.skipped_trajectories,
+        "per_trajectory": metrics.per_trajectory,
+    }
