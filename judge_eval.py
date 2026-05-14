@@ -9,11 +9,11 @@ optionally substituting either stage with a user-provided callable.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from analyzer import ScorerJudge
+from analyzer import ScorerJudge, _patterns_matched
 from models import NormalizedStep, Step
 from patterns import PATTERNS
 
@@ -80,3 +80,32 @@ def discover_labels(corpus_dir: Path) -> list[LabeledTrajectory]:
     """Load all *.labels.json files under corpus_dir, sorted by filename."""
     corpus_dir = Path(corpus_dir)
     return [load_label(p) for p in sorted(corpus_dir.glob("*.labels.json"))]
+
+
+@dataclass
+class JudgeMetrics:
+    suspicious_precision: float
+    suspicious_recall: float
+    suspicious_f1: float
+    critical_hit_at_1: float
+    category_accuracy: float | None
+    labeled_trajectories: int
+    skipped_trajectories: int
+    per_trajectory: list[dict] = field(default_factory=list)
+
+
+def _f1(precision: float, recall: float) -> float:
+    if precision + recall == 0:
+        return 0.0
+    return 2 * precision * recall / (precision + recall)
+
+
+def _category_for_prediction(step: NormalizedStep) -> str | None:
+    """Return the top-matched pattern name for a step, or None.
+
+    Reuses analyzer._patterns_matched, which reads step.matched_pattern_names.
+    Judges that don't populate matched_pattern_names will yield None here,
+    which correctly excludes that step from category accuracy.
+    """
+    matched = _patterns_matched(step)
+    return matched[0].name if matched else None

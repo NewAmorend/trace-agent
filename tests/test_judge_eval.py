@@ -80,5 +80,30 @@ class LoadLabelTests(unittest.TestCase):
             self.assertEqual(len(labels), 1)
 
 
+class MetricMathTests(unittest.TestCase):
+    def test_f1_zero_when_both_zero(self):
+        from judge_eval import _f1
+        self.assertEqual(_f1(0.0, 0.0), 0.0)
+
+    def test_f1_harmonic_mean(self):
+        from judge_eval import _f1
+        self.assertAlmostEqual(_f1(0.5, 1.0), 2 / 3, places=6)
+
+    def test_category_for_prediction_uses_matched_pattern_names(self):
+        from judge_eval import _category_for_prediction
+        from tests._helpers import make_normalized_step
+
+        step = make_normalized_step(step_id=1, action="x")
+        step.matched_pattern_names = ["test_edit_after_impl_failure", "repeated_command"]
+        self.assertEqual(_category_for_prediction(step), "test_edit_after_impl_failure")
+
+    def test_category_for_prediction_none_when_no_matches(self):
+        from judge_eval import _category_for_prediction
+        from tests._helpers import make_normalized_step
+
+        step = make_normalized_step(step_id=1, action="x")
+        self.assertIsNone(_category_for_prediction(step))
+
+
 if __name__ == "__main__":
     unittest.main()
