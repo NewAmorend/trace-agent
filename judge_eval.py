@@ -217,9 +217,9 @@ def evaluate_judges(
 
 def format_metrics_md(metrics: JudgeMetrics) -> str:
     if metrics.category_accuracy is None:
-        cat_line = "Category accuracy: n/a (no overlap)"
+        cat_value = "n/a (no overlap)"
     else:
-        cat_line = f"Category accuracy: {metrics.category_accuracy:.3f}"
+        cat_value = f"{metrics.category_accuracy:.3f}"
 
     return "\n".join([
         "# Judge Eval",
@@ -235,7 +235,8 @@ def format_metrics_md(metrics: JudgeMetrics) -> str:
         "## Critical-step localization",
         f"hit@1: {metrics.critical_hit_at_1:.3f}",
         "",
-        f"## {cat_line}",
+        "## Category accuracy",
+        cat_value,
         "",
     ])
 
