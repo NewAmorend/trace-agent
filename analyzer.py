@@ -41,7 +41,10 @@ def score_suspicious_steps(
     Returns steps with suspicious_score and suspicious_reasons populated.
     When `judge` is provided, it replaces the rule-based scoring entirely;
     the caller is responsible for populating suspicious_score and
-    suspicious_reasons (and optionally matched_pattern_names).
+    suspicious_reasons (and optionally matched_pattern_names). The judge
+    receives the original step list directly (the rule path deep-copies;
+    the judge path does not), so a judge must not mutate steps it does
+    not intend to own.
     """
     if judge is not None:
         return judge(steps, task, final_status)
