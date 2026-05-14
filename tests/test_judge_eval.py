@@ -47,7 +47,7 @@ class LoadLabelTests(unittest.TestCase):
                     {"step_id": 1, "suspicious": True, "category": "no_such_pattern"},
                 ],
             })
-            with self.assertRaises(ValueError):
+            with self.assertRaisesRegex(ValueError, "no_such_pattern"):
                 load_label(path)
 
     def test_missing_steps_default_not_suspicious(self):

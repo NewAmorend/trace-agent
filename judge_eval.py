@@ -9,15 +9,15 @@ optionally substituting either stage with a user-provided callable.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from analyzer import ScorerJudge
 from models import NormalizedStep, Step
 from patterns import PATTERNS
 
 ClassifierJudge = Callable[[Step], NormalizedStep]
-ScorerJudge = Callable[[list[NormalizedStep], str, str], list[NormalizedStep]]
 
 
 @dataclass
