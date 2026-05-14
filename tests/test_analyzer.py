@@ -229,5 +229,31 @@ class DiagnosisEnhancementTests(unittest.TestCase):
         self.assertEqual(diag.confidence, "low")
 
 
+class ScoreSuspiciousJudgeHookTests(unittest.TestCase):
+    def test_judge_replaces_rule_scoring(self):
+        def judge(steps, task, final_status):
+            out = []
+            for step in steps:
+                step.suspicious_score = 9.99
+                step.suspicious_reasons = ["custom"]
+                out.append(step)
+            return out
+
+        steps = [make_normalized_step(step_id=1, action="apply_patch tests/x.py",
+                                      action_type="edit_file", state_change=True,
+                                      diff="tests/x.py")]
+        out = score_suspicious_steps(steps, "task", "failed", judge=judge)
+        self.assertEqual(out[0].suspicious_score, 9.99)
+        self.assertEqual(out[0].suspicious_reasons, ["custom"])
+
+    def test_default_behavior_unchanged_without_judge(self):
+        steps = [make_normalized_step(step_id=1, action="apply_patch tests/x.py",
+                                      action_type="edit_file", state_change=True,
+                                      diff="tests/x.py")]
+        out = score_suspicious_steps(steps, "task", "success")
+        self.assertGreater(out[0].suspicious_score, 0)
+        self.assertTrue(out[0].suspicious_reasons)
+
+
 if __name__ == "__main__":
     unittest.main()

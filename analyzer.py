@@ -1,10 +1,13 @@
 """Analysis logic for detecting suspicious steps and failures."""
 
 import copy
+from typing import Callable
 
 from models import Diagnosis, NormalizedStep
 from patterns import PATTERNS, Pattern, RISK_THRESHOLD_HIGH, RISK_THRESHOLD_MEDIUM
 from test_signals import looks_like_test_failure, looks_like_test_success
+
+ScorerJudge = Callable[[list[NormalizedStep], str, str], list[NormalizedStep]]
 
 
 _TEST_PATH_INDICATORS = [
@@ -26,12 +29,23 @@ def _apply(step: NormalizedStep, pattern_name: str, reason: str) -> None:
     step.matched_pattern_names.append(pattern_name)
 
 
-def score_suspicious_steps(steps: list[NormalizedStep], task: str, final_status: str) -> list[NormalizedStep]:
+def score_suspicious_steps(
+    steps: list[NormalizedStep],
+    task: str,
+    final_status: str,
+    judge: "ScorerJudge | None" = None,
+) -> list[NormalizedStep]:
     """
     Score steps for suspicious behavior.
 
     Returns steps with suspicious_score and suspicious_reasons populated.
+    When `judge` is provided, it replaces the rule-based scoring entirely;
+    the caller is responsible for populating suspicious_score and
+    suspicious_reasons (and optionally matched_pattern_names).
     """
+    if judge is not None:
+        return judge(steps, task, final_status)
+
     steps = copy.deepcopy(steps)
 
     has_impl_edit = any(
