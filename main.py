@@ -292,6 +292,24 @@ def run_swe_run_command(args: argparse.Namespace) -> int:
         return 2
 
 
+def run_judge_eval_command(args: argparse.Namespace) -> int:
+    try:
+        from judge_eval import evaluate_judges, format_metrics_md, metrics_to_dict
+
+        # --judge is currently "rule" only; future LLM judges will branch here.
+        metrics = evaluate_judges(Path(args.labels))
+
+        if args.format == "json":
+            print(json.dumps(metrics_to_dict(metrics), indent=2))
+        else:
+            print(format_metrics_md(metrics))
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 2
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="trace-agent",
@@ -305,6 +323,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_eval_args(eval_parser)
     eval_parser.set_defaults(func=run_eval_command)
+
+    judge_eval_parser = subparsers.add_parser(
+        "judge-eval",
+        help="Score a judge against a labeled trajectory corpus",
+    )
+    judge_eval_parser.add_argument(
+        "--labels",
+        required=True,
+        help="Directory containing *.labels.json sidecar files",
+    )
+    judge_eval_parser.add_argument(
+        "--judge",
+        choices=["rule"],
+        default="rule",
+        help="Which judge to evaluate (default: rule)",
+    )
+    judge_eval_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+    judge_eval_parser.set_defaults(func=run_judge_eval_command)
 
     tree_parser = subparsers.add_parser(
         "tree",

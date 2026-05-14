@@ -229,5 +229,49 @@ class FormatMetricsTests(unittest.TestCase):
         self.assertEqual(json.loads(s)["suspicious_f1"], 0.685)
 
 
+class JudgeEvalCLITests(unittest.TestCase):
+    def test_parser_accepts_judge_eval_subcommand(self):
+        from main import build_parser
+        parser = build_parser()
+        args = parser.parse_args(["judge-eval", "--labels", "tests/fixtures/labels"])
+        self.assertEqual(args.command, "judge-eval")
+        self.assertEqual(args.format, "text")
+        self.assertEqual(args.judge, "rule")
+
+    def test_parser_accepts_format_json(self):
+        from main import build_parser
+        parser = build_parser()
+        args = parser.parse_args([
+            "judge-eval", "--labels", "tests/fixtures/labels", "--format", "json",
+        ])
+        self.assertEqual(args.format, "json")
+
+    def test_run_judge_eval_prints_json_when_requested(self):
+        import io
+        from contextlib import redirect_stdout
+        from main import build_parser, run_judge_eval_command
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / "x.labels.json").write_text(json.dumps({
+                "trajectory": "examples/codex_failed_run_001.jsonl",
+                "labeler": "test",
+                "labeled_at": "2026-05-14",
+                "final_status": "failed",
+                "steps": [],
+            }))
+            parser = build_parser()
+            args = parser.parse_args([
+                "judge-eval", "--labels", str(tmp), "--format", "json",
+            ])
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = run_judge_eval_command(args)
+            self.assertEqual(code, 0)
+            payload = json.loads(buf.getvalue())
+            self.assertIn("suspicious_precision", payload)
+            self.assertIn("labeled_trajectories", payload)
+
+
 if __name__ == "__main__":
     unittest.main()
