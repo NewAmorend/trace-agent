@@ -152,6 +152,7 @@ class EvaluateJudgesTests(unittest.TestCase):
         }
         with self._label_dir_with(payload) as tmp:
             metrics = evaluate_judges(Path(tmp))
+            self.assertEqual(metrics.suspicious_precision, 0.0)
             self.assertEqual(metrics.suspicious_recall, 0.0)
             self.assertEqual(metrics.suspicious_f1, 0.0)
 
