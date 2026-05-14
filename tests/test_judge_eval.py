@@ -105,5 +105,89 @@ class MetricMathTests(unittest.TestCase):
         self.assertIsNone(_category_for_prediction(step))
 
 
+class EvaluateJudgesTests(unittest.TestCase):
+    def _label_dir_with(self, payload: dict) -> tempfile.TemporaryDirectory:
+        tmp = tempfile.TemporaryDirectory()
+        path = Path(tmp.name) / "fixture.labels.json"
+        path.write_text(json.dumps(payload))
+        return tmp
+
+    def test_rule_judge_perfect_labels_yields_high_f1(self):
+        """Label *every* rule-flagged step as suspicious; precision and recall should both be 1.0."""
+        from analyzer import score_suspicious_steps
+        from classifier import normalize_steps
+        from judge_eval import evaluate_judges
+        from parser import load_trajectory
+
+        trajectory = load_trajectory("examples/codex_failed_run_001.jsonl")
+        normalized = normalize_steps(trajectory.steps)
+        scored = score_suspicious_steps(normalized, trajectory.task, trajectory.final_status)
+        flagged_ids = {s.step_id for s in scored if s.suspicious_score > 0}
+
+        payload = {
+            "trajectory": "examples/codex_failed_run_001.jsonl",
+            "labeler": "test",
+            "labeled_at": "2026-05-14",
+            "final_status": trajectory.final_status,
+            "critical_step_id": max(scored, key=lambda s: s.suspicious_score).step_id,
+            "steps": [{"step_id": sid, "suspicious": True} for sid in sorted(flagged_ids)],
+        }
+        with self._label_dir_with(payload) as tmp:
+            metrics = evaluate_judges(Path(tmp))
+            self.assertAlmostEqual(metrics.suspicious_precision, 1.0)
+            self.assertAlmostEqual(metrics.suspicious_recall, 1.0)
+            self.assertAlmostEqual(metrics.suspicious_f1, 1.0)
+            self.assertEqual(metrics.labeled_trajectories, 1)
+            self.assertEqual(metrics.skipped_trajectories, 0)
+
+    def test_label_with_no_overlap_yields_zero_f1(self):
+        """Label step 1 only (which the rule judge does not flag in this fixture)."""
+        from judge_eval import evaluate_judges
+        payload = {
+            "trajectory": "examples/codex_failed_run_001.jsonl",
+            "labeler": "test",
+            "labeled_at": "2026-05-14",
+            "final_status": "failed",
+            "steps": [{"step_id": 1, "suspicious": True}],
+        }
+        with self._label_dir_with(payload) as tmp:
+            metrics = evaluate_judges(Path(tmp))
+            self.assertEqual(metrics.suspicious_recall, 0.0)
+            self.assertEqual(metrics.suspicious_f1, 0.0)
+
+    def test_missing_trajectory_file_is_skipped(self):
+        from judge_eval import evaluate_judges
+        payload = {
+            "trajectory": "examples/does_not_exist.jsonl",
+            "labeler": "test",
+            "labeled_at": "2026-05-14",
+            "final_status": "failed",
+            "steps": [],
+        }
+        with self._label_dir_with(payload) as tmp:
+            metrics = evaluate_judges(Path(tmp))
+            self.assertEqual(metrics.labeled_trajectories, 0)
+            self.assertEqual(metrics.skipped_trajectories, 1)
+
+    def test_scorer_judge_is_invoked(self):
+        from judge_eval import evaluate_judges
+        called = {"flag": False}
+
+        def fake_scorer(steps, task, final_status):
+            called["flag"] = True
+            return steps
+
+        payload = {
+            "trajectory": "examples/codex_failed_run_001.jsonl",
+            "labeler": "test",
+            "labeled_at": "2026-05-14",
+            "final_status": "failed",
+            "steps": [],
+        }
+        with self._label_dir_with(payload) as tmp:
+            evaluate_judges(Path(tmp), scorer_judge=fake_scorer)
+        self.assertTrue(called["flag"])
+
+
 if __name__ == "__main__":
     unittest.main()

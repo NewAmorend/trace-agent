@@ -13,7 +13,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from analyzer import ScorerJudge, _patterns_matched
+from analyzer import ScorerJudge, _patterns_matched, score_suspicious_steps
+from classifier import normalize_steps
+from parser import load_trajectory
 from models import NormalizedStep, Step
 from patterns import PATTERNS
 
@@ -109,3 +111,105 @@ def _category_for_prediction(step: NormalizedStep) -> str | None:
     """
     matched = _patterns_matched(step)
     return matched[0].name if matched else None
+
+
+def evaluate_judges(
+    labeled_corpus_dir: Path,
+    *,
+    classifier_judge: ClassifierJudge | None = None,
+    scorer_judge: ScorerJudge | None = None,
+) -> JudgeMetrics:
+    """Evaluate the (classifier + scorer) judge pipeline against a labeled corpus.
+
+    For each *.labels.json file under `labeled_corpus_dir`:
+      1. Load the referenced trajectory via parser.load_trajectory.
+      2. Run normalize_steps (with classifier_judge) -> score_suspicious_steps
+         (with scorer_judge).
+      3. Compare predictions to labels and accumulate counts.
+
+    Trajectories whose file is missing are counted in skipped_trajectories.
+    """
+    labels = discover_labels(labeled_corpus_dir)
+
+    tp = fp = fn = 0
+    critical_hits = 0
+    critical_eligible = 0
+    category_correct = 0
+    category_eligible = 0
+    skipped = 0
+    per_trajectory: list[dict] = []
+
+    for labeled in labels:
+        try:
+            trajectory = load_trajectory(str(labeled.trajectory_path))
+        except FileNotFoundError:
+            skipped += 1
+            per_trajectory.append({
+                "trajectory": str(labeled.trajectory_path),
+                "skipped": True,
+            })
+            continue
+
+        normalized = normalize_steps(trajectory.steps, judge=classifier_judge)
+        scored = score_suspicious_steps(
+            normalized, trajectory.task, trajectory.final_status, judge=scorer_judge,
+        )
+
+        traj_tp = traj_fp = traj_fn = 0
+        for step in scored:
+            predicted = step.suspicious_score > 0
+            actual = labeled.is_suspicious(step.step_id)
+            if predicted and actual:
+                traj_tp += 1
+                actual_cat = labeled.category_for(step.step_id)
+                predicted_cat = _category_for_prediction(step)
+                if actual_cat is not None and predicted_cat is not None:
+                    category_eligible += 1
+                    if actual_cat == predicted_cat:
+                        category_correct += 1
+            elif predicted and not actual:
+                traj_fp += 1
+            elif not predicted and actual:
+                traj_fn += 1
+
+        tp += traj_tp
+        fp += traj_fp
+        fn += traj_fn
+
+        traj_critical_hit: bool | None = None
+        if labeled.final_status == "failed" and labeled.critical_step_id is not None:
+            critical_eligible += 1
+            top = max(scored, key=lambda s: s.suspicious_score, default=None)
+            hit = (
+                top is not None
+                and top.suspicious_score > 0
+                and top.step_id == labeled.critical_step_id
+            )
+            traj_critical_hit = hit
+            if hit:
+                critical_hits += 1
+
+        per_trajectory.append({
+            "trajectory": str(labeled.trajectory_path),
+            "tp": traj_tp,
+            "fp": traj_fp,
+            "fn": traj_fn,
+            "critical_hit": traj_critical_hit,
+        })
+
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    f1 = _f1(precision, recall)
+    hit_at_1 = critical_hits / critical_eligible if critical_eligible > 0 else 0.0
+    cat_acc = category_correct / category_eligible if category_eligible > 0 else None
+
+    return JudgeMetrics(
+        suspicious_precision=precision,
+        suspicious_recall=recall,
+        suspicious_f1=f1,
+        critical_hit_at_1=hit_at_1,
+        category_accuracy=cat_acc,
+        labeled_trajectories=len(labels) - skipped,
+        skipped_trajectories=skipped,
+        per_trajectory=per_trajectory,
+    )
