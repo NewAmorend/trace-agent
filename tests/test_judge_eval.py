@@ -272,6 +272,29 @@ class JudgeEvalCLITests(unittest.TestCase):
             self.assertIn("suspicious_precision", payload)
             self.assertIn("labeled_trajectories", payload)
 
+    def test_run_judge_eval_prints_text_by_default(self):
+        import io
+        from contextlib import redirect_stdout
+        from main import build_parser, run_judge_eval_command
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / "x.labels.json").write_text(json.dumps({
+                "trajectory": "examples/codex_failed_run_001.jsonl",
+                "labeler": "test",
+                "labeled_at": "2026-05-14",
+                "final_status": "failed",
+                "steps": [],
+            }))
+            parser = build_parser()
+            args = parser.parse_args(["judge-eval", "--labels", str(tmp)])
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = run_judge_eval_command(args)
+            self.assertEqual(code, 0)
+            self.assertIn("# Judge Eval", buf.getvalue())
+            self.assertIn("Precision", buf.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

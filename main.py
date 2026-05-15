@@ -296,6 +296,10 @@ def run_judge_eval_command(args: argparse.Namespace) -> int:
     try:
         from judge_eval import evaluate_judges, format_metrics_md, metrics_to_dict
 
+        if args.judge != "rule":
+            print(f"Unknown judge: {args.judge!r}", file=sys.stderr)
+            return 2
+
         # --judge is currently "rule" only; future LLM judges will branch here.
         metrics = evaluate_judges(Path(args.labels))
 
