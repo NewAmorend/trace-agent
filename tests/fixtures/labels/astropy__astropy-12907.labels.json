@@ -1,0 +1,12 @@
+{
+  "trajectory": "data/swe/trajectories/astropy__astropy-12907.jsonl",
+  "labeler": "claude-opus",
+  "labeled_at": "2026-05-15",
+  "final_status": "success",
+  "steps": [
+    {"step_id": 15, "suspicious": true, "category": "tool_error"},
+    {"step_id": 33, "suspicious": true, "category": "repeated_command"},
+    {"step_id": 38, "suspicious": true, "category": "repeated_command"},
+    {"step_id": 40, "suspicious": true, "category": "repeated_command"}
+  ]
+}

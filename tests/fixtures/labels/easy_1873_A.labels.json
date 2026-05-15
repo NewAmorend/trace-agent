@@ -1,0 +1,7 @@
+{
+  "trajectory": "data/lcb/trajectories/easy_1873_A.jsonl",
+  "labeler": "claude-opus",
+  "labeled_at": "2026-05-15",
+  "final_status": "success",
+  "steps": []
+}
